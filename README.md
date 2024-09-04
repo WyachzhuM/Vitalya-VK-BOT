@@ -66,6 +66,21 @@ dotnet build
 dotnet run
 ```
 ...по идее должно работать
+ах, да, файл ```config.json``` не забудь поставить, он должен выглядеть вот так:
+```json
+{
+  "bot_name": "виталя",
+  "response_probability": 0.2,
+  "commands": {
+    "generate_sentences": "/generate_sentences",
+    "echo": "/echo",
+    "break": "сломай",
+    "liquidate": "ликвидируй",
+    "compress": "сожми",
+    "add_text": "ебани"
+  }
+}
+```
 
 ## Помните:
 

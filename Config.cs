@@ -51,5 +51,7 @@ namespace vkbot_vitalya
         public string AddText { get; set; }
         [JsonPropertyName("meme")]
         public string Meme { get; set; }
+        [JsonPropertyName("weather")]
+        public string Weather { get; set; }
     }
 }

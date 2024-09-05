@@ -168,19 +168,14 @@ public class Meme
 
     [JsonPropertyName("description")]
     public string Description { get; set; }
-
     [JsonPropertyName("url")]
     public string Url { get; set; }
-
     [JsonPropertyName("type")]
     public string Type { get; set; }
-
     [JsonPropertyName("width")]
     public int Width { get; set; }
-
     [JsonPropertyName("height")]
     public int Height { get; set; }
-
     [JsonPropertyName("ratio")]
     public double Ratio { get; set; }
 

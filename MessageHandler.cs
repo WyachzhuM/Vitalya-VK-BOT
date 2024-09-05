@@ -12,10 +12,12 @@ public static class MessageHandler
 {
     private static Random random = new Random();
     private static MemeGen memeGen;
+    private static WeatherService weatherService;
 
-    public static void Initialize(MemeGen memeGenInstance)
+    public static void Initialize(MemeGen memeGenInstance, WeatherService weatherServiceInstance)
     {
         memeGen = memeGenInstance;
+        weatherService = weatherServiceInstance;
     }
 
     public static void HandleMessage(VkApi api, Message message, Config config, ulong groupId)
@@ -43,11 +45,17 @@ public static class MessageHandler
         File.AppendAllText("./log.txt", $"Command received: {command}\n");
 
         // Check if the command matches the meme generation pattern
-        string prefix = $"{config.BotName.ToLower()} {config.Commands.Meme} ";
-        if (command.StartsWith(prefix))
+        string prefixMeme = $"{config.BotName.ToLower()} {config.Commands.Meme.ToLower()} ";
+        string prefixWeather = $"{config.BotName.ToLower()} {config.Commands.Weather.ToLower()} ";
+        if (command.StartsWith(prefixMeme))
         {
-            string keywords = command.Substring(prefix.Length).Trim();
+            string keywords = command.Substring(prefixMeme.Length).Trim();
             HandleMemeCommand(api, message, groupId, keywords);
+        }
+        else if (command.StartsWith(prefixWeather))
+        {
+            string cityName = command.Substring(prefixWeather.Length).Trim();
+            HandleWeatherCommand(api, message, cityName);
         }
 
         // Log the defined commands for comparison
@@ -343,6 +351,28 @@ public static class MessageHandler
             SendResponse(api, message.PeerId.Value, "Извините, не удалось найти мемы по заданным ключевым словам.");
         }
     }
+
+    private static async void HandleWeatherCommand(VkApi api, Message message, string cityName)
+    {
+        WeatherResponse? weatherResponse = await weatherService.GetWeatherAsync(cityName);
+        if (weatherResponse != null)
+        {
+            string weatherMessage =
+                $"Погода в {weatherResponse.Name}:\n" +
+                $"Температура: {weatherResponse.Main?.Temp ?? 0}°C\n" +
+                $"Ощущается как: {weatherResponse.Main?.FeelsLike ?? 0}°C\n" +
+                $"Описание: {weatherResponse.Weather?.FirstOrDefault()?.Description}\n" +
+                $"Ветер: {weatherResponse.Wind?.Speed ?? 0} м/с\n" +
+                $"Влажность: {weatherResponse.Main?.Humidity ?? 0}%";
+
+            SendResponse(api, message.PeerId.Value, weatherMessage);
+        }
+        else
+        {
+            SendResponse(api, message.PeerId.Value, "Извините, не удалось получить информацию о погоде.");
+        }
+    }
+
 
     private static void SendResponse(VkApi api, long peerId, string message)
     {

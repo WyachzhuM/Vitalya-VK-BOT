@@ -18,6 +18,7 @@ class Program
     private static Random random = new Random();
     private static ManualResetEvent _shutdownEvent = new ManualResetEvent(false);
     private static MemeGen memeGen;
+    private static WeatherService weatherService;
 
     public static void Main(string[] args)
     {
@@ -43,6 +44,7 @@ class Program
         }
 
         memeGen = new MemeGen(auth);
+        weatherService = new WeatherService(auth.WeatherApiKey);
 
         api = new VkApi();
         try
@@ -57,7 +59,7 @@ class Program
             return;
         }
 
-        MessageHandler.Initialize(memeGen);
+        MessageHandler.Initialize(memeGen, weatherService); // Initialize handler with MemeGen and WeatherService instances
 
         File.AppendAllText(logFilePath, "Bot is running...\n");
         Console.WriteLine("Bot is running...");
@@ -110,7 +112,8 @@ class Program
                         File.AppendAllText("./log.txt", $"New message from {message.FromId}: {message.Text}\n");
 
                         // Save message to file
-                        SaveMessageToFile(message.Text);
+                        if(!message.Text.Contains("@"))
+                            SaveMessageToFile(message.Text);
 
                         // Call message handler
                         try

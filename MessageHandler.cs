@@ -11,6 +11,12 @@ namespace vkbot_vitalya;
 public static class MessageHandler
 {
     private static Random random = new Random();
+    private static MemeGen memeGen;
+
+    public static void Initialize(MemeGen memeGenInstance)
+    {
+        memeGen = memeGenInstance;
+    }
 
     public static void HandleMessage(VkApi api, Message message, Config config, ulong groupId)
     {
@@ -35,6 +41,14 @@ public static class MessageHandler
 
         Console.WriteLine($"Command received: {command}");
         File.AppendAllText("./log.txt", $"Command received: {command}\n");
+
+        // Check if the command matches the meme generation pattern
+        string prefix = $"{config.BotName.ToLower()} {config.Commands.Meme} ";
+        if (command.StartsWith(prefix))
+        {
+            string keywords = command.Substring(prefix.Length).Trim();
+            HandleMemeCommand(api, message, groupId, keywords);
+        }
 
         // Log the defined commands for comparison
         Console.WriteLine($"Defined 'Break' command: {config.Commands.Break}");
@@ -266,6 +280,67 @@ public static class MessageHandler
             var words = lines.SelectMany(line => line.Split(' ')).ToList();
             var randomWords = words.OrderBy(x => random.Next()).Take(5).ToArray();
             return string.Join(" ", randomWords);
+        }
+    }
+
+    private static async void HandleMemeCommand(VkApi api, Message message, ulong groupId, string keywords)
+    {
+        MemeGenResponse? response = await memeGen.SearchMemes(keywords, 1, MemeType.Image);
+        if (response != null && response.Memes.Count > 0)
+        {
+            string memeUrl = response.Memes[0].Url;
+            Console.WriteLine($"Found meme URL: {memeUrl}");
+            File.AppendAllText("./log.txt", $"Found meme URL: {memeUrl}\n");
+
+            // Get the server for uploading photos
+            var uploadServer = api.Photo.GetMessagesUploadServer((long)groupId).UploadUrl;
+            Console.WriteLine($"Upload URL: {uploadServer}");
+            File.AppendAllText("./log.txt", $"Upload URL: {uploadServer}\n");
+
+            try
+            {
+                // Download meme image
+                using (WebClient webClient = new WebClient())
+                {
+                    byte[] imageBytes = webClient.DownloadData(memeUrl);
+                    string outputPath = "./meme.jpg";
+                    File.WriteAllBytes(outputPath, imageBytes);
+
+                    // Upload the meme image to the server
+                    var responseBytes = webClient.UploadFile(uploadServer, outputPath);
+                    var responseString = Encoding.ASCII.GetString(responseBytes);
+
+                    // Save the uploaded meme image
+                    var savedPhotos = api.Photo.SaveMessagesPhoto(responseString);
+                    Console.WriteLine("Meme uploaded to VK.");
+                    File.AppendAllText("./log.txt", "Meme uploaded to VK.\n");
+
+                    // Send the saved meme image in a message
+                    api.Messages.Send(new MessagesSendParams
+                    {
+                        RandomId = random.Next(),
+                        PeerId = message.PeerId.Value,
+                        Attachments = savedPhotos,
+                        Message = GenerateRandomMessage()
+                    });
+
+                    Console.WriteLine("Meme sent to user.");
+                    File.AppendAllText("./log.txt", "Meme sent to user.\n");
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Exception in HandleMemeCommand: {ex.Message}");
+                File.AppendAllText("./log.txt", $"Exception in HandleMemeCommand: {ex.Message}\n");
+                Console.WriteLine($"Stack Trace: {ex.StackTrace}");
+                File.AppendAllText("./log.txt", $"Stack Trace: {ex.StackTrace}\n");
+            }
+        }
+        else
+        {
+            Console.WriteLine("No meme found.");
+            File.AppendAllText("./log.txt", "No meme found.\n");
+            SendResponse(api, message.PeerId.Value, "Извините, не удалось найти мемы по заданным ключевым словам.");
         }
     }
 

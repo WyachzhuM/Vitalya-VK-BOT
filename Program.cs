@@ -17,6 +17,7 @@ class Program
     public static readonly string MessagesFilePath = "./messages.txt";
     private static Random random = new Random();
     private static ManualResetEvent _shutdownEvent = new ManualResetEvent(false);
+    private static MemeGen memeGen;
 
     public static void Main(string[] args)
     {
@@ -32,7 +33,7 @@ class Program
             return;
         }
 
-        var auth = AuthBotFile.GetAuthBotFileFromJson(authPath);
+        auth = AuthBotFile.GetAuthBotFileFromJson(authPath);
         config = Config.GetConfigFromJson(configPath);
 
         if (auth == null || config == null)
@@ -40,6 +41,8 @@ class Program
             File.AppendAllText(logFilePath, "Auth file or config file is NULL\n");
             return;
         }
+
+        memeGen = new MemeGen(auth);
 
         api = new VkApi();
         try
@@ -53,6 +56,8 @@ class Program
             Console.WriteLine($"Authorization failed: {ex.Message}");
             return;
         }
+
+        MessageHandler.Initialize(memeGen);
 
         File.AppendAllText(logFilePath, "Bot is running...\n");
         Console.WriteLine("Bot is running...");

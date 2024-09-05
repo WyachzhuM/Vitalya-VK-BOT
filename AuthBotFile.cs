@@ -5,20 +5,19 @@ namespace VkBot
 {
     public class AuthBotFile
     {
-        public AuthBotFile()
+        public AuthBotFile(string accessToken, ulong groupId, string memeGenApiKey)
         {
-        }
-
-        public AuthBotFile(string access_token, ulong group_id)
-        {
-            AccessToken = access_token;
-            GroupId = group_id;
+            AccessToken = accessToken;
+            GroupId = groupId;
+            MemeGenApiKey = memeGenApiKey;
         }
 
         [JsonPropertyName("access_token")]
         public string AccessToken { get; set; }
         [JsonPropertyName("group_id")]
         public ulong GroupId { get; set; }
+        [JsonPropertyName("memegen_apikey")]
+        public string MemeGenApiKey { get; set; }
 
         public static AuthBotFile? GetAuthBotFileFromJson(string path)
         {

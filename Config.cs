@@ -49,5 +49,7 @@ namespace vkbot_vitalya
         public string Compress { get; set; }
         [JsonPropertyName("add_text")]
         public string AddText { get; set; }
+        [JsonPropertyName("meme")]
+        public string Meme { get; set; }
     }
 }

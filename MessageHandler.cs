@@ -46,34 +46,71 @@ public static class MessageHandler
         Console.WriteLine($"Command received: {command}");
         File.AppendAllText("./log.txt", $"Command received: {command}\n");
 
-        // Check if the command matches the meme generation pattern
-        string prefixMeme = $"{config.BotName.ToLower()} {config.Commands.Meme.ToLower()} ";
-        string prefixWeather = $"{config.BotName.ToLower()} {config.Commands.Weather.ToLower()} ";
-        string prefixAnime = $"{config.BotName.ToLower()} {config.Commands.Anime.ToLower()}";
+        bool isBotAddressed = config.BotNames.Any(botName => command.StartsWith(botName));
 
-        if (command.StartsWith(prefixMeme))
+        if (!isBotAddressed)
         {
-            string keywords = command.Substring(prefixMeme.Length).Trim();
-            HandleMemeCommand(api, message, groupId, keywords);
-        }
-        if (command.StartsWith(prefixWeather))
-        {
-            string cityName = command.Substring(prefixWeather.Length).Trim();
-            HandleWeatherCommand(api, message, cityName);
-        }
-        if (command.StartsWith(prefixAnime))
-        {
-            HandleAnimeCommand(api, message, groupId);
+            Console.WriteLine("Bot name not addressed.");
+            File.AppendAllText("./log.txt", "Bot name not addressed.\n");
+            return;
         }
 
-        // Log the defined commands for comparison
-        Console.WriteLine($"Defined 'Break' command: {config.Commands.Break}");
-        Console.WriteLine($"Defined 'Liquidate' command: {config.Commands.Liquidate}");
-        Console.WriteLine($"Defined 'Compress' command: {config.Commands.Compress}");
-        File.AppendAllText("./log.txt", $"Defined 'Break' command: {config.Commands.Break}\n");
-        File.AppendAllText("./log.txt", $"Defined 'Liquidate' command: {config.Commands.Liquidate}\n");
-        File.AppendAllText("./log.txt", $"Defined 'Compress' command: {config.Commands.Compress}\n");
+        // Identify the actual command
+        var botNameUsed = config.BotNames.First(botName => command.StartsWith(botName));
+        command = command.Replace(botNameUsed, "").Trim();
 
+        foreach (var cmd in config.Commands)
+        {
+            if (cmd.Value.Any(alias => command.StartsWith(alias)))
+            {
+                string actualCommand = cmd.Key;
+                switch (actualCommand)
+                {
+                    case "meme":
+                        string keywords = command.Substring(cmd.Value.First().Length).Trim();
+                        HandleMemeCommand(api, message, groupId, keywords);
+                        return;
+                    case "weather":
+                        string cityName = command.Substring(cmd.Value.First().Length).Trim();
+                        HandleWeatherCommand(api, message, cityName);
+                        return;
+                    case "anime":
+                        HandleAnimeCommand(api, message, groupId);
+                        return;
+                    case "help":
+                        HandleHelpCommand(api, message, groupId);
+                        return;
+                    case "break":
+                    case "liquidate":
+                    case "compress":
+                    case "add_text":
+                        HandlePhotoCommand(api, message, groupId, command, actualCommand, config);
+                        return;
+                    case "generate_sentences":
+                        var sentencesResponseMessage = GenerateMultipleSentences();
+                        SendResponse(api, message.PeerId.Value, sentencesResponseMessage);
+                        return;
+                    case "echo":
+                        var echoText = message.Text.Substring(cmd.Value.First().Length).Trim();
+                        SendResponse(api, message.PeerId.Value, echoText);
+                        return;
+                    default:
+                        var defaultMessage = GenerateRandomMessage();
+                        SendResponse(api, message.PeerId.Value, defaultMessage);
+                        return;
+                }
+            }
+        }
+
+        if (random.NextDouble() < config.ResponseProbability)
+        {
+            var responseMessage = GenerateRandomMessage();
+            SendResponse(api, message.PeerId.Value, responseMessage);
+        }
+    }
+
+    private static void HandlePhotoCommand(VkApi api, Message message, ulong groupId, string command, string actualCommand, Config config)
+    {
         // Get attachments from message
         var attachments = message.Attachments;
 
@@ -90,36 +127,34 @@ public static class MessageHandler
                     File.AppendAllText("./log.txt", $"Photo URL: {photoUrl}\n");
 
                     // Determine the command and call the appropriate image processing function
-                    if (command.Contains(config.Commands.Break, StringComparison.OrdinalIgnoreCase))
+                    switch (actualCommand)
                     {
-                        Console.WriteLine("Command 'Break' recognized.");
-                        File.AppendAllText("./log.txt", "Command 'Break' recognized.\n");
-                        HandleImageCommand(api, message, photoUrl, ImageProcessor.BreakImage, groupId);
-                    }
-                    else if (command.Contains(config.Commands.Liquidate, StringComparison.OrdinalIgnoreCase))
-                    {
-                        Console.WriteLine("Command 'Liquidate' recognized.");
-                        File.AppendAllText("./log.txt", "Command 'Liquidate' recognized.\n");
-                        HandleImageCommand(api, message, photoUrl, ImageProcessor.LiquidateImage, groupId);
-                    }
-                    else if (command.Contains(config.Commands.Compress, StringComparison.OrdinalIgnoreCase))
-                    {
-                        Console.WriteLine("Command 'Compress' recognized.");
-                        File.AppendAllText("./log.txt", "Command 'Compress' recognized.\n");
-                        HandleImageCommand(api, message, photoUrl, ImageProcessor.CompressImage, groupId);
-                    }
-                    else if (command.Contains(config.Commands.AddText, StringComparison.OrdinalIgnoreCase))
-                    {
-                        Console.WriteLine("Command 'AddText' recognized.");
-                        File.AppendAllText("./log.txt", "Command 'AddText' recognized.\n");
-                        HandleImageCommand(api, message, photoUrl, ImageProcessor.AddTextImageCommand, groupId);
-                    }
-                    else
-                    {
-                        Console.WriteLine("No matching command found. Generating random message.");
-                        File.AppendAllText("./log.txt", "No matching command found. Generating random message.\n");
-                        var responseMessage = GenerateRandomMessage();
-                        SendResponse(api, message.PeerId.Value, responseMessage);
+                        case "break":
+                            Console.WriteLine("Command 'Break' recognized.");
+                            File.AppendAllText("./log.txt", "Command 'Break' recognized.\n");
+                            HandleImageCommand(api, message, photoUrl, ImageProcessor.BreakImage, groupId);
+                            break;
+                        case "liquidate":
+                            Console.WriteLine("Command 'Liquidate' recognized.");
+                            File.AppendAllText("./log.txt", "Command 'Liquidate' recognized.\n");
+                            HandleImageCommand(api, message, photoUrl, ImageProcessor.LiquidateImage, groupId);
+                            break;
+                        case "compress":
+                            Console.WriteLine("Command 'Compress' recognized.");
+                            File.AppendAllText("./log.txt", "Command 'Compress' recognized.\n");
+                            HandleImageCommand(api, message, photoUrl, ImageProcessor.CompressImage, groupId);
+                            break;
+                        case "add_text":
+                            Console.WriteLine("Command 'AddText' recognized.");
+                            File.AppendAllText("./log.txt", "Command 'AddText' recognized.\n");
+                            HandleImageCommand(api, message, photoUrl, ImageProcessor.AddTextImageCommand, groupId);
+                            break;
+                        default:
+                            Console.WriteLine("No matching command found. Generating random message.");
+                            File.AppendAllText("./log.txt", "No matching command found. Generating random message.\n");
+                            var responseMessage = GenerateRandomMessage();
+                            SendResponse(api, message.PeerId.Value, responseMessage);
+                            break;
                     }
                 }
                 else
@@ -139,35 +174,20 @@ public static class MessageHandler
             Console.WriteLine("No photo attachments found or attachments are not photos.");
             File.AppendAllText("./log.txt", "No photo attachments found or attachments are not photos.\n");
 
-            // Process text commands
-            if (random.NextDouble() < config.ResponseProbability || command.Contains(config.Commands.GenerateSentences) || command.Contains(config.Commands.Echo))
+            // Handle cases where message doesn't contain a photo but may still need to respond
+            if (command.Contains(config.Commands["generate_sentences"].First(), StringComparison.OrdinalIgnoreCase))
             {
-                if (command.Contains(config.Commands.GenerateSentences, StringComparison.OrdinalIgnoreCase))
-                {
-                    Console.WriteLine("Command 'Generate Sentences' recognized.");
-                    File.AppendAllText("./log.txt", "Command 'Generate Sentences' recognized.\n");
-                    var responseMessage = GenerateMultipleSentences();
-                    SendResponse(api, message.PeerId.Value, responseMessage);
-                }
-                else if (command.Contains(config.Commands.Echo, StringComparison.OrdinalIgnoreCase))
-                {
-                    Console.WriteLine("Command 'Echo' recognized.");
-                    File.AppendAllText("./log.txt", "Command 'Echo' recognized.\n");
-                    var echoText = message.Text.Substring(config.Commands.Echo.Length).Trim();
-                    SendResponse(api, message.PeerId.Value, echoText);
-                }
-                else
-                {
-                    Console.WriteLine("Generating random message.");
-                    File.AppendAllText("./log.txt", "Generating random message.\n");
-                    var responseMessage = GenerateRandomMessage();
-                    SendResponse(api, message.PeerId.Value, responseMessage);
-                }
+                Console.WriteLine("Command 'Generate Sentences' recognized.");
+                File.AppendAllText("./log.txt", "Command 'Generate Sentences' recognized.\n");
+                var responseMessage = GenerateMultipleSentences();
+                SendResponse(api, message.PeerId.Value, responseMessage);
             }
-            else
+            else if (command.Contains(config.Commands["echo"].First(), StringComparison.OrdinalIgnoreCase))
             {
-                Console.WriteLine("Message did not match any command and did not trigger response probability.");
-                File.AppendAllText("./log.txt", "Message did not match any command and did not trigger response probability.\n");
+                Console.WriteLine("Command 'Echo' recognized.");
+                File.AppendAllText("./log.txt", "Command 'Echo' recognized.\n");
+                var echoText = message.Text.Substring(config.Commands["echo"].First().Length).Trim();
+                SendResponse(api, message.PeerId.Value, echoText);
             }
         }
     }
@@ -472,6 +492,18 @@ public static class MessageHandler
             File.AppendAllText("./log.txt", "No anime image found.\n");
             SendResponse(api, message.PeerId.Value, "Извините, не удалось найти изображение аниме.");
         }
+    }
+
+    private static async void HandleHelpCommand(VkApi api, Message message, ulong groupId)
+    {
+        string help = File.ReadAllText("./config.json");
+
+        api.Messages.Send(new MessagesSendParams
+        {
+            RandomId = random.Next(),
+            PeerId = message.PeerId.Value,
+            Message = help
+        });
     }
 
     private static void SendResponse(VkApi api, long peerId, string message)

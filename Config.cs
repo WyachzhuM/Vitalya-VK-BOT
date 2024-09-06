@@ -6,54 +6,32 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 
-namespace vkbot_vitalya
+namespace vkbot_vitalya;
+
+public class Config
 {
-    public class Config
+    // Modified constructor to accept multiple bot names and commands
+    public Config(List<string> botNames, double responseProbability, Dictionary<string, List<string>> commands)
     {
-        public Config()
-        {
-        }
-
-        public Config(string bot_name, double response_probability, Commands commands)
-        {
-            BotName = bot_name;
-            ResponseProbability = response_probability;
-            Commands = commands;
-        }
-
-        [JsonPropertyName("bot_name")]
-        public string BotName { get; set; }
-        [JsonPropertyName("response_probability")]
-        public double ResponseProbability { get; set; }
-        [JsonPropertyName("commands")]
-        public Commands Commands { get; set; }
-
-        public static Config? GetConfigFromJson(string path)
-        {
-            string json = File.ReadAllText(path);
-            return JsonSerializer.Deserialize<Config>(json);
-        }
+        BotNames = botNames;
+        ResponseProbability = responseProbability;
+        Commands = commands;
     }
 
-    public class Commands
+    // Modified property to hold multiple bot names
+    [JsonPropertyName("bot_names")]
+    public List<string> BotNames { get; set; }
+
+    [JsonPropertyName("response_probability")]
+    public double ResponseProbability { get; set; }
+
+    // Modified property to hold multiple forms of each command
+    [JsonPropertyName("commands")]
+    public Dictionary<string, List<string>> Commands { get; set; }
+
+    public static Config? GetConfigFromJson(string path)
     {
-        [JsonPropertyName("generate_sentences")]
-        public string GenerateSentences { get; set; }
-        [JsonPropertyName("echo")]
-        public string Echo { get; set; }
-        [JsonPropertyName("break")]
-        public string Break { get; set; }
-        [JsonPropertyName("liquidate")]
-        public string Liquidate { get; set; }
-        [JsonPropertyName("compress")]
-        public string Compress { get; set; }
-        [JsonPropertyName("add_text")]
-        public string AddText { get; set; }
-        [JsonPropertyName("meme")]
-        public string Meme { get; set; }
-        [JsonPropertyName("weather")]
-        public string Weather { get; set; }
-        [JsonPropertyName("anime")]
-        public string Anime { get; set; }
+        string json = File.ReadAllText(path);
+        return JsonSerializer.Deserialize<Config>(json);
     }
 }

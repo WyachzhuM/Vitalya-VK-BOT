@@ -112,8 +112,9 @@ class Program
                         Console.WriteLine($"New message from {message.FromId}: {message.Text}");
                         File.AppendAllText("./log.txt", $"New message from {message.FromId}: {message.Text}\n");
 
+                        bool isBotAddressed = config.BotNames.Any(message.Text.StartsWith);
                         // Save message to file
-                        if(!message.Text.Contains("@"))
+                        if (!isBotAddressed)
                             SaveMessageToFile(message.Text);
 
                         // Call message handler

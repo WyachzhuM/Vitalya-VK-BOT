@@ -1,15 +1,16 @@
 {
-  "bot_name": "виталя",
+  "bot_names": [ "виталя", "вит", "валера", "@pan_propalbot" ],
   "response_probability": 0.2,
   "commands": {
-    "generate_sentences": "/generate_sentences",
-    "echo": "/echo",
-    "break": "сломай",
-    "liquidate": "ликвидируй",
-    "compress": "сожми",
-    "add_text": "ебани",
-    "meme": "мем",
-    "weather": "погода",
-    "anime": "аниме"
+    "generate_sentences": [ "/generate_sentences", "пизди" ],
+    "echo": [ "/echo", "ты тут?" ],
+    "break": [ "сломай", "разбей", "разрушь" ],
+    "liquidate": [ "ликвидируй", "уничтожь" ],
+    "compress": [ "сожми", "уменьши" ],
+    "add_text": [ "ебани", "текст" ],
+    "meme": [ "мем" ],
+    "weather": [ "погода", "темп" ],
+    "anime": [ "аниме", "а", "a" ],
+    "help": [ "помощь", "/help", "помоги" ]
   }
 }

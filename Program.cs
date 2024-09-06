@@ -1,7 +1,6 @@
 ﻿using Newtonsoft.Json.Linq;
 using System;
 using System.Threading.Tasks;
-using VkBot;
 using VkNet;
 using VkNet.Enums.Filters;
 using VkNet.Exception;
@@ -19,6 +18,7 @@ class Program
     private static ManualResetEvent _shutdownEvent = new ManualResetEvent(false);
     private static MemeGen memeGen;
     private static WeatherService weatherService;
+    private static DanbooruApi danbooruApi;
 
     public static void Main(string[] args)
     {
@@ -36,6 +36,7 @@ class Program
 
         auth = AuthBotFile.GetAuthBotFileFromJson(authPath);
         config = Config.GetConfigFromJson(configPath);
+        danbooruApi = new DanbooruApi(auth);
 
         if (auth == null || config == null)
         {
@@ -59,7 +60,7 @@ class Program
             return;
         }
 
-        MessageHandler.Initialize(memeGen, weatherService); // Initialize handler with MemeGen and WeatherService instances
+        MessageHandler.Initialize(memeGen, weatherService, danbooruApi); // Initialize handler with the necessary instances
 
         File.AppendAllText(logFilePath, "Bot is running...\n");
         Console.WriteLine("Bot is running...");

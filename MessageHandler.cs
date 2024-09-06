@@ -13,11 +13,13 @@ public static class MessageHandler
     private static Random random = new Random();
     private static MemeGen memeGen;
     private static WeatherService weatherService;
+    private static DanbooruApi danbooruApi;
 
-    public static void Initialize(MemeGen memeGenInstance, WeatherService weatherServiceInstance)
+    public static void Initialize(MemeGen memeGenInstance, WeatherService weatherServiceInstance, DanbooruApi danbooruApiInstance)
     {
         memeGen = memeGenInstance;
         weatherService = weatherServiceInstance;
+        danbooruApi = danbooruApiInstance;
     }
 
     public static void HandleMessage(VkApi api, Message message, Config config, ulong groupId)
@@ -47,15 +49,21 @@ public static class MessageHandler
         // Check if the command matches the meme generation pattern
         string prefixMeme = $"{config.BotName.ToLower()} {config.Commands.Meme.ToLower()} ";
         string prefixWeather = $"{config.BotName.ToLower()} {config.Commands.Weather.ToLower()} ";
+        string prefixAnime = $"{config.BotName.ToLower()} {config.Commands.Anime.ToLower()}";
+
         if (command.StartsWith(prefixMeme))
         {
             string keywords = command.Substring(prefixMeme.Length).Trim();
             HandleMemeCommand(api, message, groupId, keywords);
         }
-        else if (command.StartsWith(prefixWeather))
+        if (command.StartsWith(prefixWeather))
         {
             string cityName = command.Substring(prefixWeather.Length).Trim();
             HandleWeatherCommand(api, message, cityName);
+        }
+        if (command.StartsWith(prefixAnime))
+        {
+            HandleAnimeCommand(api, message, groupId);
         }
 
         // Log the defined commands for comparison
@@ -373,6 +381,98 @@ public static class MessageHandler
         }
     }
 
+    private static async void HandleAnimeCommand(VkApi api, Message message, ulong groupId)
+    {
+        string commandText = message.Text.ToLower().Trim();
+        string[] commandParts = commandText.Split(new[] { ' ' }, 3);
+
+        string tags = "";
+
+        if (commandParts.Length >= 3)
+        {
+            tags = commandParts[2].Trim();
+        }
+
+        // Если теги не указаны, будут использоваться отрицательные теги по умолчанию
+        Console.WriteLine($"Requesting Danbooru with tags: {tags}");
+        File.AppendAllText("./log.txt", $"Requesting Danbooru with tags: {tags}\n");
+
+        Post? randomPost = await danbooruApi.RandomImageAsync(tags);
+        if (randomPost != null)
+        {
+            string imageUrl = randomPost.FileUrl;
+            Console.WriteLine($"Found image URL: {imageUrl}");
+            File.AppendAllText("./log.txt", $"Found image URL: {imageUrl}\n");
+
+            if (!imageUrl.EndsWith(".jpg") && !imageUrl.EndsWith(".jpeg") && !imageUrl.EndsWith(".png") && !imageUrl.EndsWith(".gif"))
+            {
+                Console.WriteLine("Unsupported file type.");
+                File.AppendAllText("./log.txt", "Unsupported file type.\n");
+                SendResponse(api, message.PeerId.Value, "Извините, не удалось найти изображение аниме, так как файл оказался неподдерживаемым типом.");
+                return;
+            }
+
+            var uploadServer = api.Photo.GetMessagesUploadServer((long)groupId).UploadUrl;
+            Console.WriteLine($"Upload URL: {uploadServer}");
+            File.AppendAllText("./log.txt", $"Upload URL: {uploadServer}\n");
+
+            try
+            {
+                using (HttpResponseMessage response = await danbooruApi.Client.GetAsync(imageUrl))
+                {
+                    response.EnsureSuccessStatusCode();
+                    using (Stream inputStream = await response.Content.ReadAsStreamAsync())
+                    using (var memoryStream = new MemoryStream())
+                    {
+                        await inputStream.CopyToAsync(memoryStream);
+                        byte[] imageBytes = memoryStream.ToArray();
+                        string boundary = "----WebKitFormBoundary7MA4YWxkTrZu0gW";
+
+                        using (var formDataContent = new MultipartFormDataContent(boundary))
+                        {
+                            formDataContent.Headers.Remove("Content-Type");
+                            formDataContent.Headers.TryAddWithoutValidation("Content-Type", "multipart/form-data; boundary=" + boundary);
+                            var byteArrayContent = new ByteArrayContent(imageBytes);
+                            byteArrayContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/octet-stream");
+                            formDataContent.Add(byteArrayContent, "file1", "anime.jpg");
+
+                            using (HttpResponseMessage uploadResponse = await danbooruApi.Client.PostAsync(uploadServer, formDataContent))
+                            {
+                                uploadResponse.EnsureSuccessStatusCode();
+                                string responseString = await uploadResponse.Content.ReadAsStringAsync();
+                                var savedPhotos = api.Photo.SaveMessagesPhoto(responseString);
+                                Console.WriteLine("Anime image uploaded to VK.");
+                                File.AppendAllText("./log.txt", "Anime image uploaded to VK.\n");
+
+                                api.Messages.Send(new MessagesSendParams
+                                {
+                                    RandomId = random.Next(),
+                                    PeerId = message.PeerId.Value,
+                                    Attachments = savedPhotos
+                                });
+
+                                Console.WriteLine("Anime image sent to user.");
+                                File.AppendAllText("./log.txt", "Anime image sent to user.\n");
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Exception in HandleAnimeCommand: {ex.Message}");
+                File.AppendAllText("./log.txt", $"Exception in HandleAnimeCommand: {ex.Message}\n");
+                Console.WriteLine($"Stack Trace: {ex.StackTrace}");
+                File.AppendAllText("./log.txt", $"Stack Trace: {ex.StackTrace}\n");
+            }
+        }
+        else
+        {
+            Console.WriteLine("No anime image found.");
+            File.AppendAllText("./log.txt", "No anime image found.\n");
+            SendResponse(api, message.PeerId.Value, "Извините, не удалось найти изображение аниме.");
+        }
+    }
 
     private static void SendResponse(VkApi api, long peerId, string message)
     {

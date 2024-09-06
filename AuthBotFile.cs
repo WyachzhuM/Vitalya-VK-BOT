@@ -1,40 +1,65 @@
 ﻿using System.Text.Json;
 using System.Text.Json.Serialization;
 
-namespace VkBot
+namespace vkbot_vitalya;
+
+public class AuthBotFile
 {
-    public class AuthBotFile
+    public AuthBotFile(string accessToken,
+                       ulong groupId,
+                       string memeGenApiKey,
+                       string weatherApiKey,
+                       string danbooruLogin,
+                       string danbooruApikey,
+                       string proxyAdress,
+                       string proxyLogin,
+                       string proxyPassword)
     {
-        public AuthBotFile(string accessToken, ulong groupId, string memeGenApiKey, string weatherApiKey)
-        {
-            AccessToken = accessToken;
-            GroupId = groupId;
-            MemeGenApiKey = memeGenApiKey;
-            WeatherApiKey = weatherApiKey;
-        }
+        AccessToken = accessToken;
+        GroupId = groupId;
+        MemeGenApiKey = memeGenApiKey;
+        WeatherApiKey = weatherApiKey;
+        DanbooruLogin = danbooruLogin;
+        DanbooruApikey = danbooruApikey;
+        ProxyAdress = proxyAdress;
+        ProxyLogin = proxyLogin;
+        ProxyPassword = proxyPassword;
+    }
 
-        [JsonPropertyName("access_token")]
-        public string AccessToken { get; set; }
-        [JsonPropertyName("group_id")]
-        public ulong GroupId { get; set; }
-        [JsonPropertyName("memegen_apikey")]
-        public string MemeGenApiKey { get; set; }
-        [JsonPropertyName("weather_apikey")]
-        public string WeatherApiKey { get; set; }
+    [JsonPropertyName("access_token")]
+    public string AccessToken { get; set; }
+    [JsonPropertyName("group_id")]
+    public ulong GroupId { get; set; }
 
-        public static AuthBotFile? GetAuthBotFileFromJson(string path)
-        {
-            string json = File.ReadAllText(path);
-            return JsonSerializer.Deserialize<AuthBotFile>(json);
-        }
+    [JsonPropertyName("memegen_apikey")]
+    public string MemeGenApiKey { get; set; }
+    [JsonPropertyName("weather_apikey")]
+    public string WeatherApiKey { get; set; }
 
-        public void SaveToJson(string fileName, string filePath)
-        {
-            var json = JsonSerializer.Serialize(this);
+    [JsonPropertyName("danbooru_login")]
+    public string DanbooruLogin { get; set; }
+    [JsonPropertyName("danbooru_apikey")]
+    public string DanbooruApikey { get; set; }
 
-            File.WriteAllText($"{filePath}/{fileName}.json", json);
+    [JsonPropertyName("proxy_adress")]
+    public string ProxyAdress { get; set; }
+    [JsonPropertyName("proxy_login")]
+    public string ProxyLogin { get; set; }
+    [JsonPropertyName("proxy_password")]
+    public string ProxyPassword { get; set; }
 
-            Console.WriteLine("AuthBotFile saved in" + $"{filePath}/{fileName}.json");
-        }
+    public static AuthBotFile? GetAuthBotFileFromJson(string path)
+    {
+        string json = File.ReadAllText(path);
+        return JsonSerializer.Deserialize<AuthBotFile>(json);
+    }
+
+    public void SaveToJson(string fileName, string filePath)
+    {
+        var json = JsonSerializer.Serialize(this);
+
+        File.WriteAllText($"{filePath}/{fileName}.json", json);
+
+        Console.WriteLine("AuthBotFile saved in" + $"{filePath}/{fileName}.json");
     }
 }

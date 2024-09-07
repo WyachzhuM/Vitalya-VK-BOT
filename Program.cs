@@ -19,6 +19,7 @@ class Program
     private static MemeGen memeGen;
     private static WeatherService weatherService;
     private static DanbooruApi danbooruApi;
+    private static Map map;
 
     public static void Main(string[] args)
     {
@@ -37,6 +38,7 @@ class Program
         auth = AuthBotFile.GetAuthBotFileFromJson(authPath);
         config = Config.GetConfigFromJson(configPath);
         danbooruApi = new DanbooruApi(auth);
+        map = new Map(auth);
 
         if (auth == null || config == null)
         {
@@ -60,7 +62,7 @@ class Program
             return;
         }
 
-        MessageHandler.Initialize(memeGen, weatherService, danbooruApi); // Initialize handler with the necessary instances
+        MessageHandler.Initialize(memeGen, weatherService, danbooruApi, map); // Initialize handler with the necessary instances
 
         File.AppendAllText(logFilePath, "Bot is running...\n");
         Console.WriteLine("Bot is running...");

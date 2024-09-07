@@ -13,7 +13,8 @@ public class AuthBotFile
                        string danbooruApikey,
                        string proxyAdress,
                        string proxyLogin,
-                       string proxyPassword)
+                       string proxyPassword,
+                       string yandexApiKey)
     {
         AccessToken = accessToken;
         GroupId = groupId;
@@ -24,6 +25,7 @@ public class AuthBotFile
         ProxyAdress = proxyAdress;
         ProxyLogin = proxyLogin;
         ProxyPassword = proxyPassword;
+        YandexApiKey = yandexApiKey;
     }
 
     [JsonPropertyName("access_token")]
@@ -47,6 +49,8 @@ public class AuthBotFile
     public string ProxyLogin { get; set; }
     [JsonPropertyName("proxy_password")]
     public string ProxyPassword { get; set; }
+    [JsonPropertyName("y_apikey")]
+    public string YandexApiKey { get; set; }
 
     public static AuthBotFile? GetAuthBotFileFromJson(string path)
     {

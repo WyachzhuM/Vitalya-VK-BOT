@@ -14,12 +14,14 @@ public static class MessageHandler
     private static MemeGen memeGen;
     private static WeatherService weatherService;
     private static DanbooruApi danbooruApi;
+    private static Map map;
 
-    public static void Initialize(MemeGen memeGenInstance, WeatherService weatherServiceInstance, DanbooruApi danbooruApiInstance)
+    public static void Initialize(MemeGen memeGenInstance, WeatherService weatherServiceInstance, DanbooruApi danbooruApiInstance, Map mapInstance)
     {
         memeGen = memeGenInstance;
         weatherService = weatherServiceInstance;
         danbooruApi = danbooruApiInstance;
+        map = mapInstance;
     }
 
     public static void HandleMessage(VkApi api, Message message, Config config, ulong groupId)
@@ -76,6 +78,10 @@ public static class MessageHandler
                         return;
                     case "anime":
                         HandleAnimeCommand(api, message, groupId);
+                        return;
+                    case "where":
+                        string whereis = command.Substring(cmd.Value.First().Length).Trim();
+                        HandleSearchCommand(api, message, groupId, whereis);
                         return;
                     case "help":
                         HandleHelpCommand(api, message, groupId);
@@ -336,33 +342,31 @@ public static class MessageHandler
             try
             {
                 // Download meme image
-                using (WebClient webClient = new WebClient())
+                using WebClient webClient = new WebClient();
+                byte[] imageBytes = webClient.DownloadData(memeUrl);
+                string outputPath = "./meme.jpg";
+                File.WriteAllBytes(outputPath, imageBytes);
+
+                // Upload the meme image to the server
+                var responseBytes = webClient.UploadFile(uploadServer, outputPath);
+                var responseString = Encoding.ASCII.GetString(responseBytes);
+
+                // Save the uploaded meme image
+                var savedPhotos = api.Photo.SaveMessagesPhoto(responseString);
+                Console.WriteLine("Meme uploaded to VK.");
+                File.AppendAllText("./log.txt", "Meme uploaded to VK.\n");
+
+                // Send the saved meme image in a message
+                api.Messages.Send(new MessagesSendParams
                 {
-                    byte[] imageBytes = webClient.DownloadData(memeUrl);
-                    string outputPath = "./meme.jpg";
-                    File.WriteAllBytes(outputPath, imageBytes);
+                    RandomId = random.Next(),
+                    PeerId = message.PeerId.Value,
+                    Attachments = savedPhotos,
+                    Message = GenerateRandomMessage()
+                });
 
-                    // Upload the meme image to the server
-                    var responseBytes = webClient.UploadFile(uploadServer, outputPath);
-                    var responseString = Encoding.ASCII.GetString(responseBytes);
-
-                    // Save the uploaded meme image
-                    var savedPhotos = api.Photo.SaveMessagesPhoto(responseString);
-                    Console.WriteLine("Meme uploaded to VK.");
-                    File.AppendAllText("./log.txt", "Meme uploaded to VK.\n");
-
-                    // Send the saved meme image in a message
-                    api.Messages.Send(new MessagesSendParams
-                    {
-                        RandomId = random.Next(),
-                        PeerId = message.PeerId.Value,
-                        Attachments = savedPhotos,
-                        Message = GenerateRandomMessage()
-                    });
-
-                    Console.WriteLine("Meme sent to user.");
-                    File.AppendAllText("./log.txt", "Meme sent to user.\n");
-                }
+                Console.WriteLine("Meme sent to user.");
+                File.AppendAllText("./log.txt", "Meme sent to user.\n");
             }
             catch (Exception ex)
             {
@@ -408,10 +412,7 @@ public static class MessageHandler
 
         string tags = "";
 
-        if (commandParts.Length >= 3)
-        {
-            tags = commandParts[2].Trim();
-        }
+        if (commandParts.Length >= 3) tags = commandParts[2].Trim();
 
         // Если теги не указаны, будут использоваться отрицательные теги по умолчанию
         Console.WriteLine($"Requesting Danbooru with tags: {tags}");
@@ -438,45 +439,37 @@ public static class MessageHandler
 
             try
             {
-                using (HttpResponseMessage response = await danbooruApi.Client.GetAsync(imageUrl))
+                using HttpResponseMessage response = await danbooruApi.Client.GetAsync(imageUrl);
+                response.EnsureSuccessStatusCode();
+                using Stream inputStream = await response.Content.ReadAsStreamAsync();
+                using var memoryStream = new MemoryStream();
+                await inputStream.CopyToAsync(memoryStream);
+                byte[] imageBytes = memoryStream.ToArray();
+                string boundary = "----WebKitFormBoundary7MA4YWxkTrZu0gW";
+
+                using var formDataContent = new MultipartFormDataContent(boundary);
+                formDataContent.Headers.Remove("Content-Type");
+                formDataContent.Headers.TryAddWithoutValidation("Content-Type", "multipart/form-data; boundary=" + boundary);
+                var byteArrayContent = new ByteArrayContent(imageBytes);
+                byteArrayContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/octet-stream");
+                formDataContent.Add(byteArrayContent, "file1", "anime.jpg");
+
+                using HttpResponseMessage uploadResponse = await danbooruApi.Client.PostAsync(uploadServer, formDataContent);
+                uploadResponse.EnsureSuccessStatusCode();
+                string responseString = await uploadResponse.Content.ReadAsStringAsync();
+                var savedPhotos = api.Photo.SaveMessagesPhoto(responseString);
+                Console.WriteLine("Anime image uploaded to VK.");
+                File.AppendAllText("./log.txt", "Anime image uploaded to VK.\n");
+
+                api.Messages.Send(new MessagesSendParams
                 {
-                    response.EnsureSuccessStatusCode();
-                    using (Stream inputStream = await response.Content.ReadAsStreamAsync())
-                    using (var memoryStream = new MemoryStream())
-                    {
-                        await inputStream.CopyToAsync(memoryStream);
-                        byte[] imageBytes = memoryStream.ToArray();
-                        string boundary = "----WebKitFormBoundary7MA4YWxkTrZu0gW";
+                    RandomId = random.Next(),
+                    PeerId = message.PeerId.Value,
+                    Attachments = savedPhotos
+                });
 
-                        using (var formDataContent = new MultipartFormDataContent(boundary))
-                        {
-                            formDataContent.Headers.Remove("Content-Type");
-                            formDataContent.Headers.TryAddWithoutValidation("Content-Type", "multipart/form-data; boundary=" + boundary);
-                            var byteArrayContent = new ByteArrayContent(imageBytes);
-                            byteArrayContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/octet-stream");
-                            formDataContent.Add(byteArrayContent, "file1", "anime.jpg");
-
-                            using (HttpResponseMessage uploadResponse = await danbooruApi.Client.PostAsync(uploadServer, formDataContent))
-                            {
-                                uploadResponse.EnsureSuccessStatusCode();
-                                string responseString = await uploadResponse.Content.ReadAsStringAsync();
-                                var savedPhotos = api.Photo.SaveMessagesPhoto(responseString);
-                                Console.WriteLine("Anime image uploaded to VK.");
-                                File.AppendAllText("./log.txt", "Anime image uploaded to VK.\n");
-
-                                api.Messages.Send(new MessagesSendParams
-                                {
-                                    RandomId = random.Next(),
-                                    PeerId = message.PeerId.Value,
-                                    Attachments = savedPhotos
-                                });
-
-                                Console.WriteLine("Anime image sent to user.");
-                                File.AppendAllText("./log.txt", "Anime image sent to user.\n");
-                            }
-                        }
-                    }
-                }
+                Console.WriteLine("Anime image sent to user.");
+                File.AppendAllText("./log.txt", "Anime image sent to user.\n");
             }
             catch (Exception ex)
             {
@@ -498,12 +491,52 @@ public static class MessageHandler
     {
         string help = File.ReadAllText("./config.json");
 
-        api.Messages.Send(new MessagesSendParams
+        await api.Messages.SendAsync(new MessagesSendParams
         {
             RandomId = random.Next(),
             PeerId = message.PeerId.Value,
             Message = help
         });
+    }
+
+    private static async void HandleSearchCommand(VkApi api, Message message, ulong groupId, string location)
+    {
+        var output = await map.Search(location);
+
+        var outputPath = output.Item1;
+
+        try
+        {
+            var uploadServer = api.Photo.GetMessagesUploadServer((long)groupId).UploadUrl;
+            Console.WriteLine($"Upload URL: {uploadServer}");
+            File.AppendAllText("./log.txt", $"Upload URL: {uploadServer}\n");
+
+            using WebClient webClient = new WebClient();
+            var responseBytes = webClient.UploadFile(uploadServer, outputPath);
+            var responseString = Encoding.ASCII.GetString(responseBytes);
+
+            var savedPhotos = api.Photo.SaveMessagesPhoto(responseString);
+            Console.WriteLine("Meme uploaded to VK.");
+            File.AppendAllText("./log.txt", "Location photo uploaded to VK.\n");
+
+            // Send the saved meme image in a message
+            api.Messages.Send(new MessagesSendParams
+            {
+                RandomId = random.Next(),
+                PeerId = message.PeerId.Value,
+                Attachments = savedPhotos,
+                Message = $"{location} {GenerateRandomMessage()} \n{output.Item2.Item1}\n{output.Item2.Item2}"
+            });
+        }
+        catch
+        {
+            api.Messages.Send(new MessagesSendParams
+            {
+                RandomId = random.Next(),
+                PeerId = message.PeerId.Value,
+                Message = $"{location} - Не удалось найти это место!"
+            });
+        }
     }
 
     private static void SendResponse(VkApi api, long peerId, string message)

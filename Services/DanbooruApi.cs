@@ -1,16 +1,38 @@
-﻿using System.Net;
+﻿using System.Linq;
+using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using vkbot_vitalya.Config;
+using VkNet.Model;
 
-namespace vkbot_vitalya;
+namespace vkbot_vitalya.Services;
 
 /// <summary>
 /// это было сложно, но я это сделал
 /// </summary>
 public class DanbooruApi
 {
+    List<string> forbriddenTags = new List<string>()
+                        {
+                            "futanari",
+                            "gay",
+                            "furry",
+                            "penis",
+                            "testicles",
+                            "huge penis",
+                            "erection",
+                            "inflation",
+                            "loli",
+                            "child on child",
+                            "yaoi",
+                            "2boys",
+                            "nazi",
+                            "trap",
+                            "succubus"
+                        };
+
     public DanbooruApi(AuthBotFile auth)
     {
         ApiKey = auth.DanbooruApikey;
@@ -43,7 +65,7 @@ public class DanbooruApi
     private string ApiKey { get; set; }
     private string Login { get; set; }
 
-    public async Task<Post?> RandomImageAsync(string tags = "", string excludeTags = "yaoi, 2boys, multiple_boys, male_penetrated, bara, male_focus, muscular_male, cum_on_male, facial_hair", int count = 1)
+    public async Task<Post?> RandomImageAsync(Action onForbTag, string tags = "", string excludeTags = "yaoi, 2boys, multiple_boys, male_penetrated, bara, male_focus, muscular_male, cum_on_male, facial_hair", int count = 1)
     {
         try
         {
@@ -76,6 +98,7 @@ public class DanbooruApi
                 if (response.IsSuccessStatusCode)
                 {
                     string responseBody = await response.Content.ReadAsStringAsync();
+                    Console.WriteLine($"\n {responseBody} \n");
                     var posts = JsonSerializer.Deserialize<List<Post>>(responseBody);
 
                     if (posts != null && posts.Count > 0)
@@ -85,6 +108,20 @@ public class DanbooruApi
 
                         int randomIndex = rand.Next(posts.Count);
                         var post = posts[randomIndex];
+
+                        bool isEnough = false;
+
+                        forbriddenTags.ForEach(forbTag =>
+                        {
+                            if (post.TagString.Contains(forbTag))
+                            {
+                                isEnough = true;
+                                onForbTag?.Invoke();
+                            }
+                        });
+
+                        if (isEnough)
+                            break;
 
                         // Добавляем проверку типа файла
                         if (post.FileUrl.EndsWith(".jpg") || post.FileUrl.EndsWith(".jpeg") || post.FileUrl.EndsWith(".png") || post.FileUrl.EndsWith(".gif"))

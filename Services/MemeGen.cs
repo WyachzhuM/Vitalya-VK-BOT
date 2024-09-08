@@ -1,7 +1,8 @@
 ﻿using System.Text.Json;
 using System.Text.Json.Serialization;
+using vkbot_vitalya.Config;
 
-namespace vkbot_vitalya;
+namespace vkbot_vitalya.Services;
 
 public class MemeGen
 {

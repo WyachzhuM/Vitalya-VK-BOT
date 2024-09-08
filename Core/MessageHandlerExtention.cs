@@ -1,121 +1,22 @@
-﻿using SixLabors.ImageSharp.Formats.Jpeg;
+﻿using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.Formats.Jpeg;
 using SixLabors.ImageSharp.PixelFormats;
-using SixLabors.ImageSharp;
 using System.Net;
 using System.Text;
+using vkbot_vitalya.Config;
+using vkbot_vitalya.Services;
+using vkbot_vitalya.Services.Generators;
 using VkNet;
 using VkNet.Model;
 
 namespace vkbot_vitalya;
 
-public static class MessageHandler
+/// <summary>
+/// Extention to handlers
+/// </summary>
+public partial class MessageHandler
 {
-    private static Random random = new Random();
-    private static MemeGen memeGen;
-    private static WeatherService weatherService;
-    private static DanbooruApi danbooruApi;
-    private static Map map;
-
-    public static void Initialize(MemeGen memeGenInstance, WeatherService weatherServiceInstance, DanbooruApi danbooruApiInstance, Map mapInstance)
-    {
-        memeGen = memeGenInstance;
-        weatherService = weatherServiceInstance;
-        danbooruApi = danbooruApiInstance;
-        map = mapInstance;
-    }
-
-    public static void HandleMessage(VkApi api, Message message, Config config, ulong groupId)
-    {
-        if (api == null || message == null || config == null)
-        {
-            Console.WriteLine("API, message, or config is null");
-            File.AppendAllText("./log.txt", "API, message, or config is null\n");
-            return;
-        }
-
-        Console.WriteLine("Handling message...");
-        File.AppendAllText("./log.txt", "Handling message...\n");
-
-        // Extract command from message
-        var command = message.Text?.ToLower().Trim();
-        if (command == null)
-        {
-            Console.WriteLine("Command is null");
-            File.AppendAllText("./log.txt", "Command is null\n");
-            return;
-        }
-
-        Console.WriteLine($"Command received: {command}");
-        File.AppendAllText("./log.txt", $"Command received: {command}\n");
-
-        bool isBotAddressed = config.BotNames.Any(botName => command.StartsWith(botName));
-
-        if (!isBotAddressed)
-        {
-            Console.WriteLine("Bot name not addressed.");
-            File.AppendAllText("./log.txt", "Bot name not addressed.\n");
-            return;
-        }
-
-        // Identify the actual command
-        var botNameUsed = config.BotNames.First(botName => command.StartsWith(botName));
-        command = command.Replace(botNameUsed, "").Trim();
-
-        foreach (var cmd in config.Commands)
-        {
-            if (cmd.Value.Any(alias => command.StartsWith(alias)))
-            {
-                string actualCommand = cmd.Key;
-                switch (actualCommand)
-                {
-                    case "meme":
-                        string keywords = command.Substring(cmd.Value.First().Length).Trim();
-                        HandleMemeCommand(api, message, groupId, keywords);
-                        return;
-                    case "weather":
-                        string cityName = command.Substring(cmd.Value.First().Length).Trim();
-                        HandleWeatherCommand(api, message, cityName);
-                        return;
-                    case "anime":
-                        HandleAnimeCommand(api, message, groupId);
-                        return;
-                    case "where":
-                        string whereis = command.Substring(cmd.Value.First().Length).Trim();
-                        HandleSearchCommand(api, message, groupId, whereis);
-                        return;
-                    case "help":
-                        HandleHelpCommand(api, message, groupId);
-                        return;
-                    case "break":
-                    case "liquidate":
-                    case "compress":
-                    case "add_text":
-                        HandlePhotoCommand(api, message, groupId, command, actualCommand, config);
-                        return;
-                    case "generate_sentences":
-                        var sentencesResponseMessage = GenerateMultipleSentences();
-                        SendResponse(api, message.PeerId.Value, sentencesResponseMessage);
-                        return;
-                    case "echo":
-                        var echoText = message.Text.Substring(cmd.Value.First().Length).Trim();
-                        SendResponse(api, message.PeerId.Value, echoText);
-                        return;
-                    default:
-                        var defaultMessage = GenerateRandomMessage();
-                        SendResponse(api, message.PeerId.Value, defaultMessage);
-                        return;
-                }
-            }
-        }
-
-        if (random.NextDouble() < config.ResponseProbability)
-        {
-            var responseMessage = GenerateRandomMessage();
-            SendResponse(api, message.PeerId.Value, responseMessage);
-        }
-    }
-
-    private static void HandlePhotoCommand(VkApi api, Message message, ulong groupId, string command, string actualCommand, Config config)
+    private void HandlePhotoCommand(VkApi api, Message message, ulong groupId, string command, string actualCommand, Conf config)
     {
         // Get attachments from message
         var attachments = message.Attachments;
@@ -138,27 +39,27 @@ public static class MessageHandler
                         case "break":
                             Console.WriteLine("Command 'Break' recognized.");
                             File.AppendAllText("./log.txt", "Command 'Break' recognized.\n");
-                            HandleImageCommand(api, message, photoUrl, ImageProcessor.BreakImage, groupId);
+                            HandleImageCommand(api, message, photoUrl, Processor.BreakImage, groupId);
                             break;
                         case "liquidate":
                             Console.WriteLine("Command 'Liquidate' recognized.");
                             File.AppendAllText("./log.txt", "Command 'Liquidate' recognized.\n");
-                            HandleImageCommand(api, message, photoUrl, ImageProcessor.LiquidateImage, groupId);
+                            HandleImageCommand(api, message, photoUrl, Processor.LiquidateImage, groupId);
                             break;
                         case "compress":
                             Console.WriteLine("Command 'Compress' recognized.");
                             File.AppendAllText("./log.txt", "Command 'Compress' recognized.\n");
-                            HandleImageCommand(api, message, photoUrl, ImageProcessor.CompressImage, groupId);
+                            HandleImageCommand(api, message, photoUrl, Processor.CompressImage, groupId);
                             break;
                         case "add_text":
                             Console.WriteLine("Command 'AddText' recognized.");
                             File.AppendAllText("./log.txt", "Command 'AddText' recognized.\n");
-                            HandleImageCommand(api, message, photoUrl, ImageProcessor.AddTextImageCommand, groupId);
+                            HandleImageCommand(api, message, photoUrl, Processor.AddTextImageCommand, groupId);
                             break;
                         default:
                             Console.WriteLine("No matching command found. Generating random message.");
                             File.AppendAllText("./log.txt", "No matching command found. Generating random message.\n");
-                            var responseMessage = GenerateRandomMessage();
+                            var responseMessage = MessageProcessor.GenerateRandomMessage();
                             SendResponse(api, message.PeerId.Value, responseMessage);
                             break;
                     }
@@ -185,7 +86,7 @@ public static class MessageHandler
             {
                 Console.WriteLine("Command 'Generate Sentences' recognized.");
                 File.AppendAllText("./log.txt", "Command 'Generate Sentences' recognized.\n");
-                var responseMessage = GenerateMultipleSentences();
+                var responseMessage = MessageProcessor.GenerateMultipleSentences();
                 SendResponse(api, message.PeerId.Value, responseMessage);
             }
             else if (command.Contains(config.Commands["echo"].First(), StringComparison.OrdinalIgnoreCase))
@@ -198,7 +99,7 @@ public static class MessageHandler
         }
     }
 
-    private static void HandleImageCommand(VkApi api, Message message, string imageUrl, Func<Image<Rgba32>, Image<Rgba32>> imageProcessor, ulong groupId)
+    private void HandleImageCommand(VkApi api, Message message, string imageUrl, Func<Image<Rgba32>, Image<Rgba32>> imageProcessor, ulong groupId)
     {
         Console.WriteLine("Handling image command...");
         File.AppendAllText("./log.txt", "Handling image command...\n");
@@ -271,6 +172,7 @@ public static class MessageHandler
                     {
                         RandomId = random.Next(),
                         PeerId = message.PeerId.Value,
+                        ReplyTo = message.Id,
                         Attachments = savedPhotos
                     });
 
@@ -288,46 +190,9 @@ public static class MessageHandler
         }
     }
 
-    private static string GenerateMultipleSentences()
+    private async void HandleMemeCommand(VkApi api, Message message, ulong groupId, string keywords)
     {
-        var lines = File.ReadAllLines(Program.MessagesFilePath);
-        if (lines.Length == 0) return "I have nothing to say.";
-
-        var words = lines.SelectMany(line => line.Split(' ')).ToList();
-        var sentences = new List<string>();
-
-        for (var i = 0; i < 5; i++)
-        {
-            var randomWords = words.OrderBy(x => random.Next()).Take(5).ToArray();
-            sentences.Add(string.Join(" ", randomWords));
-        }
-
-        return string.Join(". ", sentences) + ".";
-    }
-
-    public static string GenerateRandomMessage()
-    {
-        var lines = File.ReadAllLines(Program.MessagesFilePath);
-        if (lines.Length == 0) return "I have nothing to say.";
-
-        var method = random.Next(2);
-
-        if (method == 0)
-        {
-            var randomMessages = lines.OrderBy(x => random.Next()).Take(2).ToArray();
-            return string.Join(" ", randomMessages);
-        }
-        else
-        {
-            var words = lines.SelectMany(line => line.Split(' ')).ToList();
-            var randomWords = words.OrderBy(x => random.Next()).Take(5).ToArray();
-            return string.Join(" ", randomWords);
-        }
-    }
-
-    private static async void HandleMemeCommand(VkApi api, Message message, ulong groupId, string keywords)
-    {
-        MemeGenResponse? response = await memeGen.SearchMemes(keywords, 1, MemeType.Image);
+        MemeGenResponse? response = await ServiceEndpoint.MemeGen.SearchMemes(keywords, 1, MemeType.Image);
         if (response != null && response.Memes.Count > 0)
         {
             string memeUrl = response.Memes[0].Url;
@@ -361,8 +226,9 @@ public static class MessageHandler
                 {
                     RandomId = random.Next(),
                     PeerId = message.PeerId.Value,
+                    ReplyTo = message.Id,
                     Attachments = savedPhotos,
-                    Message = GenerateRandomMessage()
+                    Message = MessageProcessor.GenerateRandomMessage()
                 });
 
                 Console.WriteLine("Meme sent to user.");
@@ -384,9 +250,9 @@ public static class MessageHandler
         }
     }
 
-    private static async void HandleWeatherCommand(VkApi api, Message message, string cityName)
+    private async void HandleWeatherCommand(VkApi api, Message message, string cityName)
     {
-        WeatherResponse? weatherResponse = await weatherService.GetWeatherAsync(cityName);
+        WeatherResponse? weatherResponse = await ServiceEndpoint.WeatherService.GetWeatherAsync(cityName);
         if (weatherResponse != null)
         {
             string weatherMessage =
@@ -397,16 +263,30 @@ public static class MessageHandler
                 $"Ветер: {weatherResponse.Wind?.Speed ?? 0} м/с\n" +
                 $"Влажность: {weatherResponse.Main?.Humidity ?? 0}%";
 
-            SendResponse(api, message.PeerId.Value, weatherMessage);
+            SendResponse(api, message.PeerId.Value, weatherMessage, message.Id);
         }
         else
         {
-            SendResponse(api, message.PeerId.Value, "Извините, не удалось получить информацию о погоде.");
+            SendResponse(api, message.PeerId.Value, "Извините, не удалось получить информацию о погоде.", message.Id);
         }
     }
 
-    private static async void HandleAnimeCommand(VkApi api, Message message, ulong groupId)
+    private async void HandleAnimeCommand(VkApi api, Message message, ulong groupId)
     {
+        bool isForb = false;
+
+        Action onForbriddenTag = () =>
+        {
+            api.Messages.Send(new MessagesSendParams
+            {
+                RandomId = random.Next(),
+                ReplyTo = message.Id,
+                PeerId = message.PeerId.Value,
+                Message = "Я не буду эту хуйню постить"
+            });
+            isForb = true;
+        };
+
         string commandText = message.Text.ToLower().Trim();
         string[] commandParts = commandText.Split(new[] { ' ' }, 3);
 
@@ -418,7 +298,11 @@ public static class MessageHandler
         Console.WriteLine($"Requesting Danbooru with tags: {tags}");
         File.AppendAllText("./log.txt", $"Requesting Danbooru with tags: {tags}\n");
 
-        Post? randomPost = await danbooruApi.RandomImageAsync(tags);
+        vkbot_vitalya.Services.Post? randomPost = await ServiceEndpoint.DanbooruApi.RandomImageAsync(onForbriddenTag, tags);
+
+        if (isForb)
+            return;
+
         if (randomPost != null)
         {
             string imageUrl = randomPost.FileUrl;
@@ -439,7 +323,7 @@ public static class MessageHandler
 
             try
             {
-                using HttpResponseMessage response = await danbooruApi.Client.GetAsync(imageUrl);
+                using HttpResponseMessage response = await ServiceEndpoint.DanbooruApi.Client.GetAsync(imageUrl);
                 response.EnsureSuccessStatusCode();
                 using Stream inputStream = await response.Content.ReadAsStreamAsync();
                 using var memoryStream = new MemoryStream();
@@ -454,7 +338,7 @@ public static class MessageHandler
                 byteArrayContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/octet-stream");
                 formDataContent.Add(byteArrayContent, "file1", "anime.jpg");
 
-                using HttpResponseMessage uploadResponse = await danbooruApi.Client.PostAsync(uploadServer, formDataContent);
+                using HttpResponseMessage uploadResponse = await ServiceEndpoint.DanbooruApi.Client.PostAsync(uploadServer, formDataContent);
                 uploadResponse.EnsureSuccessStatusCode();
                 string responseString = await uploadResponse.Content.ReadAsStringAsync();
                 var savedPhotos = api.Photo.SaveMessagesPhoto(responseString);
@@ -487,7 +371,7 @@ public static class MessageHandler
         }
     }
 
-    private static async void HandleHelpCommand(VkApi api, Message message, ulong groupId)
+    private async void HandleHelpCommand(VkApi api, Message message, ulong groupId)
     {
         string help = File.ReadAllText("./config.json");
 
@@ -495,13 +379,14 @@ public static class MessageHandler
         {
             RandomId = random.Next(),
             PeerId = message.PeerId.Value,
+            ReplyTo = message.Id,
             Message = help
         });
     }
 
-    private static async void HandleSearchCommand(VkApi api, Message message, ulong groupId, string location)
+    private async void HandleSearchCommand(VkApi api, Message message, ulong groupId, string location)
     {
-        var output = await map.Search(location);
+        var output = await ServiceEndpoint.Map.Search(location);
 
         var outputPath = output.Item1;
 
@@ -516,7 +401,7 @@ public static class MessageHandler
             var responseString = Encoding.ASCII.GetString(responseBytes);
 
             var savedPhotos = api.Photo.SaveMessagesPhoto(responseString);
-            Console.WriteLine("Meme uploaded to VK.");
+            Console.WriteLine("location uploaded to VK.");
             File.AppendAllText("./log.txt", "Location photo uploaded to VK.\n");
 
             // Send the saved meme image in a message
@@ -524,8 +409,11 @@ public static class MessageHandler
             {
                 RandomId = random.Next(),
                 PeerId = message.PeerId.Value,
+                ReplyTo = message.Id,
                 Attachments = savedPhotos,
-                Message = $"{location} {GenerateRandomMessage()} \n{output.Item2.Item1}\n{output.Item2.Item2}"
+                Message = $"{location} {MessageProcessor.GenerateRandomMessage()} \n{output.Item2.Item1}\n{output.Item2.Item2}",
+                //Lat = long.Parse(output.Item2.lat),
+                //Longitude = long.Parse(output.Item2.lon)
             });
         }
         catch
@@ -534,20 +422,34 @@ public static class MessageHandler
             {
                 RandomId = random.Next(),
                 PeerId = message.PeerId.Value,
+                ReplyTo = message.Id,
                 Message = $"{location} - Не удалось найти это место!"
             });
         }
     }
+}
 
-    private static void SendResponse(VkApi api, long peerId, string message)
+public static class MessagesExtentions
+{
+    public static void Out(this Message message)
     {
-        api.Messages.Send(new MessagesSendParams
-        {
-            RandomId = random.Next(),
-            PeerId = peerId,
-            Message = message
-        });
-        Console.WriteLine($"Sent response: {message}");
-        File.AppendAllText("./log.txt", $"Sent response: {message}\n");
+        string isReply = message.ReplyMessage != null ? $"Reply from userID: {message.ReplyMessage.FromId}" : "Is not reply";
+
+        string formatted = "\n==============================\n" +
+    $"Message_{message.Id}\n" +
+    $"From userID: {message.FromId}\n" +
+    $"In chat: {message.PeerId}\n" +
+    $"Created At: {message.Date}\n" +
+    $"{isReply}\n" +
+    "==============================\n";
+
+        //200000000 для бесед
+        if (message.PeerId.ToString().StartsWith("200000000"))
+            Console.ForegroundColor = ConsoleColor.Red;
+        else
+            Console.ForegroundColor = ConsoleColor.Green;
+
+        Console.WriteLine(formatted);
+        Console.ForegroundColor = ConsoleColor.White;
     }
 }

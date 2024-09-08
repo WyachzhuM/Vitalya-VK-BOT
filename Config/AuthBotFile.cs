@@ -1,7 +1,7 @@
 ﻿using System.Text.Json;
 using System.Text.Json.Serialization;
 
-namespace vkbot_vitalya;
+namespace vkbot_vitalya.Config;
 
 public class AuthBotFile
 {
@@ -51,11 +51,21 @@ public class AuthBotFile
     public string ProxyPassword { get; set; }
     [JsonPropertyName("y_apikey")]
     public string YandexApiKey { get; set; }
+    [JsonPropertyName("dev_key")]
+    public string SystemPassKey { get; set; }
 
-    public static AuthBotFile? GetAuthBotFileFromJson(string path)
+    public static AuthBotFile GetAuthBotFileFromJson(string path)
     {
         string json = File.ReadAllText(path);
-        return JsonSerializer.Deserialize<AuthBotFile>(json);
+
+        var result = JsonSerializer.Deserialize<AuthBotFile>(json);
+        if (result != null)
+            return result;
+        else
+        {
+            Console.WriteLine($"AuthBotFile is NULL!");
+            return DefaultNULL();
+        }
     }
 
     public void SaveToJson(string fileName, string filePath)
@@ -65,5 +75,12 @@ public class AuthBotFile
         File.WriteAllText($"{filePath}/{fileName}.json", json);
 
         Console.WriteLine("AuthBotFile saved in" + $"{filePath}/{fileName}.json");
+    }
+
+    public static AuthBotFile DefaultNULL()
+    {
+        AuthBotFile auth = new AuthBotFile(string.Empty, 0, string.Empty, string.Empty, string.Empty, string.Empty, string.Empty, string.Empty, string.Empty, string.Empty);
+
+        return auth;
     }
 }

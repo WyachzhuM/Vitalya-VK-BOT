@@ -1,18 +1,18 @@
-﻿using SixLabors.ImageSharp.PixelFormats;
+﻿using SixLabors.Fonts;
 using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.Processing;
-using SixLabors.Fonts;
 using SixLabors.ImageSharp.Drawing.Processing;
+using SixLabors.ImageSharp.PixelFormats;
+using SixLabors.ImageSharp.Processing;
 using System.Numerics;
 using Font = SixLabors.Fonts.Font;
 
-namespace vkbot_vitalya;
+namespace vkbot_vitalya.Services.Generators;
 
-public static class ImageProcessor
+public class ImageProcessor
 {
     private static Random random = new Random();
 
-    public static Image<Rgba32> BreakImage(Image<Rgba32> image)
+    public Image<Rgba32> BreakImage(Image<Rgba32> image)
     {
         int width = image.Width;
         int height = image.Height;
@@ -30,13 +30,13 @@ public static class ImageProcessor
             }
         }
 
-        string randomText = MessageHandler.GenerateRandomMessage();
+        string randomText = MessageProcessor.GenerateRandomMessage();
         AddTextToImage(brokenImage, randomText);
 
         return brokenImage;
     }
 
-    public static Image<Rgba32> LiquidateImage(Image<Rgba32> image)
+    public Image<Rgba32> LiquidateImage(Image<Rgba32> image)
     {
         var grayImage = image.Clone(ctx => ctx.Grayscale());
 
@@ -45,7 +45,7 @@ public static class ImageProcessor
         return grayImage;
     }
 
-    public static Image<Rgba32> CompressImage(Image<Rgba32> image)
+    public Image<Rgba32> CompressImage(Image<Rgba32> image)
     {
         int newWidth = image.Width / 10;
         int newHeight = image.Height / 10;
@@ -53,22 +53,22 @@ public static class ImageProcessor
         var compressedImage = image.Clone(ctx => ctx.Resize(newWidth, newHeight));
         var finalImage = compressedImage.Clone(ctx => ctx.Resize(image.Width, image.Height));
 
-        string randomText = MessageHandler.GenerateRandomMessage();
+        string randomText = MessageProcessor.GenerateRandomMessage();
         var finalImageWithBorder = AddTextToImageWithBorder(finalImage, randomText);
 
         return finalImageWithBorder;
     }
 
-    public static Image<Rgba32> AddTextImageCommand(Image<Rgba32> image)
+    public Image<Rgba32> AddTextImageCommand(Image<Rgba32> image)
     {
-        string randomText = MessageHandler.GenerateRandomMessage();
+        string randomText = MessageProcessor.GenerateRandomMessage();
 
         AddTopTextToImage(image, randomText);
 
         return image;
     }
 
-    private static void AddTopTextToImage(Image<Rgba32> image, string text)
+    private void AddTopTextToImage(Image<Rgba32> image, string text)
     {
         Font font = SystemFonts.CreateFont("Arial", 36, FontStyle.Bold);
 
@@ -94,7 +94,7 @@ public static class ImageProcessor
         });
     }
 
-    private static void AddTextToImage(Image<Rgba32> image, string text)
+    private void AddTextToImage(Image<Rgba32> image, string text)
     {
         Font font = SystemFonts.CreateFont("Arial", 16, FontStyle.Bold);
         PointF point = new PointF(10, 10);
@@ -102,7 +102,7 @@ public static class ImageProcessor
         image.Mutate(ctx => ctx.DrawText(text, font, Color.White, point));
     }
 
-    private static void AddWatermarkText(Image<Rgba32> image, string text)
+    private void AddWatermarkText(Image<Rgba32> image, string text)
     {
         Font font = SystemFonts.CreateFont("Arial", 40, FontStyle.Bold);
 
@@ -132,7 +132,7 @@ public static class ImageProcessor
         });
     }
 
-    private static Image<Rgba32> AddTextToImageWithBorder(Image<Rgba32> image, string text)
+    private Image<Rgba32> AddTextToImageWithBorder(Image<Rgba32> image, string text)
     {
         int borderThickness = 20;
         Font font = SystemFonts.CreateFont("Arial", 36, FontStyle.Bold);

@@ -1,12 +1,8 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Text.Json;
+﻿using System.Text.Json;
 using System.Text.Json.Serialization;
-using System.Threading.Tasks;
+using vkbot_vitalya.Config;
 
-namespace vkbot_vitalya;
+namespace vkbot_vitalya.Services;
 
 public class WeatherService
 {
@@ -68,7 +64,7 @@ public class WeatherService
         return null;
     }
 
-    public WeatherService(string apiKey)
+    public WeatherService(AuthBotFile auth)
     {
         var handler = new HttpClientHandler
         {
@@ -79,7 +75,7 @@ public class WeatherService
         {
             Timeout = TimeSpan.FromSeconds(10) // Set a timeout period
         };
-        _apiKey = apiKey;
+        _apiKey = auth.WeatherApiKey;
     }
 }
 

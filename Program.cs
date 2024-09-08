@@ -1,28 +1,24 @@
-﻿using Newtonsoft.Json.Linq;
-using System;
-using System.Threading.Tasks;
+﻿using vkbot_vitalya.Config;
 using VkNet;
-using VkNet.Enums.Filters;
 using VkNet.Exception;
 using VkNet.Model;
 
 namespace vkbot_vitalya;
 
-class Program
+public static class Program
 {
-    private static VkApi api;
-    private static Config config;
+    private static VkApi api = new VkApi();
+    private static Conf config;
     private static AuthBotFile auth;
+    private static MessageHandler messageHandler;
     public static readonly string MessagesFilePath = "./messages.txt";
-    private static Random random = new Random();
+
     private static ManualResetEvent _shutdownEvent = new ManualResetEvent(false);
-    private static MemeGen memeGen;
-    private static WeatherService weatherService;
-    private static DanbooruApi danbooruApi;
-    private static Map map;
 
     public static void Main(string[] args)
     {
+        Console.ForegroundColor = ConsoleColor.White;
+
         var logFilePath = "./log.txt";
         File.AppendAllText(logFilePath, $"Bot started at {DateTime.Now}\n");
 
@@ -36,9 +32,7 @@ class Program
         }
 
         auth = AuthBotFile.GetAuthBotFileFromJson(authPath);
-        config = Config.GetConfigFromJson(configPath);
-        danbooruApi = new DanbooruApi(auth);
-        map = new Map(auth);
+        config = Conf.GetConfigFromJson(configPath);
 
         if (auth == null || config == null)
         {
@@ -46,10 +40,8 @@ class Program
             return;
         }
 
-        memeGen = new MemeGen(auth);
-        weatherService = new WeatherService(auth.WeatherApiKey);
+        messageHandler = new MessageHandler(auth);
 
-        api = new VkApi();
         try
         {
             api.Authorize(new ApiAuthParams { AccessToken = auth.AccessToken });
@@ -61,8 +53,6 @@ class Program
             Console.WriteLine($"Authorization failed: {ex.Message}");
             return;
         }
-
-        MessageHandler.Initialize(memeGen, weatherService, danbooruApi, map); // Initialize handler with the necessary instances
 
         File.AppendAllText(logFilePath, "Bot is running...\n");
         Console.WriteLine("Bot is running...");
@@ -122,7 +112,7 @@ class Program
                         // Call message handler
                         try
                         {
-                            MessageHandler.HandleMessage(api, message, config, groupId);
+                            messageHandler.HandleMessage(api, message, config, groupId);
                         }
                         catch (Exception ex)
                         {
@@ -151,16 +141,17 @@ class Program
 
     private static void SetupSignalHandling()
     {
-        Console.CancelKeyPress += (sender, e) => {
+        Console.CancelKeyPress += (sender, e) =>
+        {
             e.Cancel = true;
             _shutdownEvent.Set();
         };
 
-        AppDomain.CurrentDomain.ProcessExit += (sender, e) => {
+        AppDomain.CurrentDomain.ProcessExit += (sender, e) =>
+        {
             _shutdownEvent.Set();
         };
     }
-
 
     private static void SaveMessageToFile(string message)
     {

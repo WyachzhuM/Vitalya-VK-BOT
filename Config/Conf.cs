@@ -6,12 +6,16 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 
-namespace vkbot_vitalya;
+namespace vkbot_vitalya.Config;
 
-public class Config
+public class Conf
 {
+    public Conf()
+    {
+    }
+
     // Modified constructor to accept multiple bot names and commands
-    public Config(List<string> botNames, double responseProbability, Dictionary<string, List<string>> commands)
+    public Conf(List<string> botNames, double responseProbability, Dictionary<string, List<string>> commands)
     {
         BotNames = botNames;
         ResponseProbability = responseProbability;
@@ -29,9 +33,21 @@ public class Config
     [JsonPropertyName("commands")]
     public Dictionary<string, List<string>> Commands { get; set; }
 
-    public static Config? GetConfigFromJson(string path)
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement> AdditionalData { get; set; }
+
+    public static Conf GetConfigFromJson(string path)
     {
         string json = File.ReadAllText(path);
-        return JsonSerializer.Deserialize<Config>(json);
+        var options = new JsonSerializerOptions()
+        {
+            DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
+        };
+        var result = JsonSerializer.Deserialize<Conf>(json, options);
+        if (result == null)
+        {
+            return new Conf();
+        }
+        return result;
     }
 }

@@ -6,8 +6,9 @@ using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Web;
+using vkbot_vitalya.Config;
 
-namespace vkbot_vitalya;
+namespace vkbot_vitalya.Services;
 
 public class Map
 {
@@ -15,7 +16,7 @@ public class Map
 
     public Map(AuthBotFile auth) => _yandexApikey = auth.YandexApiKey;
 
-    public async Task<(string, (string, string))> Search(string location)
+    public async Task<(string, (string lat, string lon))> Search(string location)
     {
         var coordinates = await GetCoordinatesAsync(location);
 
@@ -38,7 +39,7 @@ public class Map
         string path = "./map_with_marker.png";
         await markedImage.SaveAsPngAsync(path);
 
-        return (path, ($"lat: {coordinates.Value.lat}", ($"lon: {coordinates.Value.lon}")));
+        return (path, ($"lat: {coordinates.Value.lat}", $"lon: {coordinates.Value.lon}"));
     }
 
     private static async Task<(double lat, double lon)?> GetCoordinatesAsync(string address)
@@ -108,7 +109,7 @@ public class Map
         return $"https://static-maps.yandex.ru/1.x/?ll={lon.ToString(CultureInfo.InvariantCulture)},{lat.ToString(CultureInfo.InvariantCulture)}&z={zoom}&size={width},{height}&l=map&apikey={_yandexApikey}";
     }
 
-    private static async Task<Image> GetMapImageAsync(string url)
+    private static async Task<Image?> GetMapImageAsync(string url)
     {
         using var httpClient = new HttpClient();
         try
@@ -154,10 +155,6 @@ public class Map
 
 public class Location
 {
-    public Location()
-    {
-    }
-
     public Location(string lat, string lon)
     {
         Lat = lat;

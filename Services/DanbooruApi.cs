@@ -1,4 +1,5 @@
-﻿using System.Linq;
+﻿using System.Collections.Concurrent;
+using System.Linq;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
@@ -14,26 +15,20 @@ namespace vkbot_vitalya.Services;
 /// </summary>
 public class DanbooruApi
 {
-    List<string> forbriddenTags = new List<string>()
-                        {
-                            "futanari",
-                            "gay",
-                            "furry",
-                            "penis",
-                            "testicles",
-                            "huge penis",
-                            "erection",
-                            "inflation",
-                            "loli",
-                            "child on child",
-                            "yaoi",
-                            "2boys",
-                            "nazi",
-                            "trap",
-                            "succubus"
-                        };
+    private static readonly TimeSpan SecondsBetweenInvokes = TimeSpan.FromSeconds(30);
 
-    public DanbooruApi(AuthBotFile auth)
+    private readonly List<string> forbiddenTags = new List<string>()
+    {
+        "futanari", "gay", "furry", "penis", "testicles", "huge penis", "erection", "inflation",
+        "loli", "child on child", "yaoi", "2boys", "nazi", "trap", "succubus", "corpse",
+        "coprophilic", "cunt", "multiple boys", "yaoi", "2boys", "multiple_boys", "male_penetrated",
+        "bara", "male_focus", "muscular_male", "cum_on_male", "rotten", "coprophagia",
+        "scat", "diarrhea", "poop", "squat toilet", "pee", "toilet use", "guro", "ero guro",
+        "vomit", "fart", "tentacles", "peeing", "personality excrement", "defecating",
+        "enema", "execution", "hazbin_hotel"
+    };
+
+    public DanbooruApi(Authentication auth)
     {
         ApiKey = auth.DanbooruApikey;
         Login = auth.DanbooruLogin;
@@ -65,7 +60,7 @@ public class DanbooruApi
     private string ApiKey { get; set; }
     private string Login { get; set; }
 
-    public async Task<Post?> RandomImageAsync(Action onForbTag, string tags = "", string excludeTags = "yaoi, 2boys, multiple_boys, male_penetrated, bara, male_focus, muscular_male, cum_on_male, facial_hair", int count = 1)
+    public async Task<Post?> RandomImageAsync(Action onForbTag, string tags = "", string excludeTags = "yaoi,2boys,multiple_boys,male_penetrated,bara, male_focus, muscular_male, cum_on_male, facial_hair", int count = 1)
     {
         try
         {
@@ -98,7 +93,6 @@ public class DanbooruApi
                 if (response.IsSuccessStatusCode)
                 {
                     string responseBody = await response.Content.ReadAsStringAsync();
-                    Console.WriteLine($"\n {responseBody} \n");
                     var posts = JsonSerializer.Deserialize<List<Post>>(responseBody);
 
                     if (posts != null && posts.Count > 0)
@@ -111,7 +105,7 @@ public class DanbooruApi
 
                         bool isEnough = false;
 
-                        forbriddenTags.ForEach(forbTag =>
+                        forbiddenTags.ForEach(forbTag =>
                         {
                             if (post.TagString.Contains(forbTag))
                             {

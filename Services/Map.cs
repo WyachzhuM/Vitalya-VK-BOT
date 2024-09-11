@@ -14,7 +14,7 @@ public class Map
 {
     private string _yandexApikey { get; set; }
 
-    public Map(AuthBotFile auth) => _yandexApikey = auth.YandexApiKey;
+    public Map(Authentication auth) => _yandexApikey = auth.YandexApiKey;
 
     public async Task<(string, (string lat, string lon))> Search(string location)
     {

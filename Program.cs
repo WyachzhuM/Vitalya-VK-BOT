@@ -9,7 +9,7 @@ public static class Program
 {
     private static VkApi api = new VkApi();
     private static Conf config;
-    private static AuthBotFile auth;
+    private static Authentication auth;
     private static MessageHandler messageHandler;
     public static readonly string MessagesFilePath = "./messages.txt";
 
@@ -31,7 +31,7 @@ public static class Program
             return;
         }
 
-        auth = AuthBotFile.GetAuthBotFileFromJson(authPath);
+        auth = Authentication.GetAuthBotFileFromJson(authPath);
         config = Conf.GetConfigFromJson(configPath);
 
         if (auth == null || config == null)
@@ -40,7 +40,7 @@ public static class Program
             return;
         }
 
-        messageHandler = new MessageHandler(auth);
+        messageHandler = new MessageHandler(auth, true);
 
         try
         {

@@ -64,7 +64,7 @@ public class WeatherService
         return null;
     }
 
-    public WeatherService(AuthBotFile auth)
+    public WeatherService(Authentication auth)
     {
         var handler = new HttpClientHandler
         {

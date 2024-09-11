@@ -1,22 +1,14 @@
 ﻿using vkbot_vitalya.Config;
 using vkbot_vitalya.Services;
 
-namespace vkbot_vitalya.Core;
+namespace vkbot_vitalya;
 
-public class ServiceEndpoint
+public record ServiceEndpoint(Authentication Auth)
 {
-    public ServiceEndpoint(AuthBotFile auth)
-    {
-        MemeGen = new MemeGen(auth);
-        WeatherService = new WeatherService(auth);
-        DanbooruApi = new DanbooruApi(auth);
-        Map = new Map(auth);
-        Wakaba = new Wakaba();
-    }
-
-    public MemeGen MemeGen { get; set; }
-    public WeatherService WeatherService { get; set; }
-    public DanbooruApi DanbooruApi { get; set; }
-    public Map Map { get; set; }
-    public Wakaba Wakaba { get; set; }
+    public MemeGen MemeGen { get; set; } = new MemeGen(Auth);
+    public WeatherService WeatherService { get; set; } = new WeatherService(Auth);
+    public DanbooruApi DanbooruApi { get; set; } = new DanbooruApi(Auth);
+    public Map Map { get; set; } = new Map(Auth);
+    public Wakaba Wakaba { get; set; } = new Wakaba();
+    public SafebooruApi SafebooruApi { get; set; } = new SafebooruApi(Auth);
 }

@@ -1,0 +1,184 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Net.Http.Headers;
+using System.Net;
+using System.Text;
+using System.Text.Json;
+using System.Text.Json.Serialization;
+using System.Threading.Tasks;
+using VkNet.Utils;
+using vkbot_vitalya.Config;
+using VkNet.Model;
+
+namespace vkbot_vitalya.Services;
+
+public class SafebooruApi
+{
+    private readonly string BASE_URL = "https://safebooru.org/";
+
+    private readonly Dictionary<string, List<SafebooruPost>> cache = new Dictionary<string, List<SafebooruPost>>();
+
+    public SafebooruApi(Authentication auth)
+    {
+        var proxy = new System.Net.WebProxy
+        {
+            Address = new Uri(auth.ProxyAdress),
+            BypassProxyOnLocal = false,
+            UseDefaultCredentials = false,
+            Credentials = new NetworkCredential(userName: auth.ProxyLogin, password: auth.ProxyPassword)
+        };
+
+        var handler = new HttpClientHandler
+        {
+            Proxy = proxy,
+            UseProxy = true,
+            ServerCertificateCustomValidationCallback = (message, cert, chain, errors) => true // Disable SSL certificate validation for testing purposes
+        };
+
+        Client = new HttpClient(handler);
+        Client.DefaultRequestHeaders.UserAgent.ParseAdd("vitalya-vk-bot/1.0 (compatible; vitalya-vk-bot/1.0; +http://vitalya-vk-bot.com)");
+    }
+
+    private HttpClient Client { get; set; }
+
+    private async Task DelayBetweenRequests()
+    {
+        await Task.Delay(1000);
+    }
+
+    public async Task<SafebooruPost> GetRandomPostAsync(string tags)
+    {
+        // Кэширование результатов
+        if (cache.ContainsKey(tags) && cache[tags].Count > 0)
+        {
+            var cachedPosts = cache[tags];
+            Random random = new Random();
+            int randomIndex = random.Next(cachedPosts.Count);
+            return cachedPosts[randomIndex];
+        }
+
+        int postCount = 5;//await GetPostCountAsync(tags);
+        if (postCount == 0)
+        {
+            Console.WriteLine("No posts found.");
+            File.AppendAllText("./log.txt", "No posts found.\n");
+            return null;
+        }
+
+        Random rnd = new Random();
+        string incTags = tags.Replace(",", " ");
+        int randomPage = rnd.Next(0, (postCount - 1) / 200 + 1);
+
+        string url = BASE_URL + $"index.php?page=dapi&s=post&q=index&limit=200&json=1&pid={randomPage}&tags={incTags}";
+
+        // Задержка перед выполнением запроса
+        await DelayBetweenRequests();
+
+        HttpResponseMessage response = await Client.GetAsync(url);
+        Console.WriteLine($"Response Status Code: {response.StatusCode}");
+        File.AppendAllText("./log.txt", $"Response Status Code: {response.StatusCode}\n");
+
+        if (response.IsSuccessStatusCode)
+        {
+            string responseBody = await response.Content.ReadAsStringAsync();
+
+            if (!string.IsNullOrWhiteSpace(responseBody) && !responseBody.Contains("search error"))  // Improved check for search error
+            {
+                try
+                {
+                    var posts = JsonSerializer.Deserialize<List<SafebooruPost>>(responseBody);
+
+                    if (posts != null && posts.Count > 0)
+                    {
+                        cache[tags] = posts; // Кэшируем результаты
+                        Console.WriteLine($"Posts found: {posts.Count}");
+                        File.AppendAllText("./log.txt", $"Posts found: {posts.Count}\n");
+
+                        int randomIndex = rnd.Next(posts.Count);
+                        return posts[randomIndex];
+                    }
+                    else
+                    {
+                        Console.WriteLine("No posts found.");
+                        File.AppendAllText("./log.txt", "No posts found.\n");
+                    }
+                }
+                catch (JsonException jsonEx)
+                {
+                    Console.WriteLine($"JSON deserialization error: {jsonEx.Message}");
+                    File.AppendAllText("./log.txt", $"JSON deserialization error: {jsonEx.Message}\n");
+                }
+            }
+            else
+            {
+                Console.WriteLine("Search error detected or response body is empty.");
+                File.AppendAllText("./log.txt", "Search error detected or response body is empty.\n");
+            }
+        }
+        else
+        {
+            string errorContent = await response.Content.ReadAsStringAsync();
+            Console.WriteLine($"Error Content: {errorContent}");
+            File.AppendAllText("./log.txt", $"Error Content: {errorContent}\n");
+        }
+
+        return null;
+    }
+
+    public async Task<int> GetPostCountAsync(string tags)
+    {
+        string incTags = tags.Replace(",", " ");
+        string url = BASE_URL + $"index.php?page=dapi&s=post&q=index&limit=1&json=1&tags={incTags}";
+
+        // Задержка перед выполнением запроса
+        await DelayBetweenRequests();
+
+        HttpResponseMessage response = await Client.GetAsync(url);
+        if (response.IsSuccessStatusCode)
+        {
+            string responseBody = await response.Content.ReadAsStringAsync();
+            var posts = JsonSerializer.Deserialize<List<SafebooruPost>>(responseBody);
+            if (posts != null && posts.Count > 0)
+            {
+                return posts[0].ID;
+            }
+        }
+        return 0;
+    }
+}
+
+public class SafebooruPost
+{
+    public SafebooruPost(string previewUrl, string sampleUrl, string fileUrl, int directoryNum, string hash, int width, int height, int iD, string image)
+    {
+        PreviewUrl = previewUrl;
+        SampleUrl = sampleUrl;
+        FileUrl = fileUrl;
+        DirectoryNum = directoryNum;
+        Hash = hash;
+        Width = width;
+        Height = height;
+        ID = iD;
+        Image = image;
+    }
+
+    [JsonPropertyName("preview_url")]
+    public string PreviewUrl { get; set; }
+    [JsonPropertyName("sample_url")]
+    public string SampleUrl { get; set; }
+    [JsonPropertyName("file_url")]
+    public string FileUrl { get; set; }
+    [JsonPropertyName("directory")]
+    public int DirectoryNum { get; set; }
+    [JsonPropertyName("hash")]
+    public string Hash { get; set; }
+    [JsonPropertyName("width")]
+    public int Width { get; set; }
+    [JsonPropertyName("height")]
+    public int Height { get; set; }
+    [JsonPropertyName("id")]
+    public int ID { get; set; }
+    [JsonPropertyName("image")]
+    public string Image { get; set; }
+}

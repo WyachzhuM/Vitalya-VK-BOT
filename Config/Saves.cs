@@ -5,15 +5,15 @@ namespace vkbot_vitalya.Config;
 
 public class Saves
 {
-    public Saves(List<Chat> chats)
+    public Saves(IEnumerable<Chat> chats)
     {
         Chats = chats;
     }
 
     [JsonPropertyName("chats")]
-    public List<Chat> Chats { get; set; }
+    public IEnumerable<Chat> Chats { get; set; }
 
-    public static Saves Load(string filePath)
+    public static Saves? Load(string filePath)
     {
         if (!File.Exists(filePath))
             return new Saves(new List<Chat>());
@@ -32,7 +32,7 @@ public class Saves
     {
         if (!Chats.Any(chat => chat.PeerID == peerId))
         {
-            Chats.Add(new Chat(peerId, new List<User>()));
+            Chats.ToList().Add(new Chat(peerId, new ChatPropertyes(), new List<User>()));
         }
     }
 
@@ -48,26 +48,48 @@ public class Saves
 
 public class Chat
 {
-    public Chat(long peerID, List<User> users)
+    public Chat(long peerID, ChatPropertyes propertyes = null, List<User> users = null)
     {
         PeerID = peerID;
-        Users = users;
+        Propertyes = propertyes ?? new ChatPropertyes();
+        Users = users ?? new List<User>();
     }
 
     [JsonPropertyName("chat_peer_id")]
     public long PeerID { get; set; }
 
+    [JsonPropertyName("property")]
+    public ChatPropertyes Propertyes { get; set; }
+
     [JsonPropertyName("users")]
     public List<User> Users { get; set; }
 }
 
-public class User
+public class ChatPropertyes
 {
-    public User(long userID)
-    {
-        UserID = userID;
-    }
+    [JsonPropertyName("anime")]
+    public bool IsAnime { get; set; } = true;
 
+    [JsonPropertyName("hentai")]
+    public bool IsHentai { get; set; } = true;
+
+    [JsonPropertyName("images")]
+    public bool IsImageProccestion { get; set; } = true;
+
+    [JsonPropertyName("meme")]
+    public bool IsMeme { get; set; } = true;
+
+    [JsonPropertyName("weather")]
+    public bool IsWeather { get; set; } = true;
+
+    [JsonPropertyName("location")]
+    public bool IsLocation { get; set; } = true;
+
+    public ChatPropertyes() { }
+}
+
+public record class User(long UserID)
+{
     [JsonPropertyName("user_id")]
-    public long UserID { get; set; }
+    public long UserID { get; set; } = UserID;
 }

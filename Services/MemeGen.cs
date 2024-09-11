@@ -6,7 +6,7 @@ namespace vkbot_vitalya.Services;
 
 public class MemeGen
 {
-    public MemeGen(AuthBotFile auth)
+    public MemeGen(Authentication auth)
     {
         if (auth.MemeGenApiKey == null)
         {

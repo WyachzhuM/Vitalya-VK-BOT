@@ -6,7 +6,7 @@ namespace vkbot_vitalya;
 
 public class UserRequest
 {
-    public Action? onSimpleText;
+    public Action<Message>? onSimpleText;
     public Action<(string command, string args)>? onCommand;
     public Action<string>? onPayload;
 
@@ -79,7 +79,7 @@ public class UserRequest
         else
         {
             Logger.M("onSimpleText?.Invoke");
-            onSimpleText?.Invoke();
+            onSimpleText?.Invoke(Message);
         }
     }
 

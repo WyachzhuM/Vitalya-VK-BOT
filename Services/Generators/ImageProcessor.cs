@@ -4,6 +4,7 @@ using SixLabors.ImageSharp.Drawing.Processing;
 using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp.Processing;
 using System.Numerics;
+using VkNet.Model;
 using Font = SixLabors.Fonts.Font;
 
 namespace vkbot_vitalya.Services.Generators;
@@ -30,7 +31,7 @@ public class ImageProcessor
             }
         }
 
-        string randomText = MessageProcessor.GenerateRandomMessage();
+        string randomText = MessageProcessor.KeepUpConversation().Result;
         AddTextToImage(brokenImage, randomText);
 
         return brokenImage;
@@ -53,7 +54,7 @@ public class ImageProcessor
         var compressedImage = image.Clone(ctx => ctx.Resize(newWidth, newHeight));
         var finalImage = compressedImage.Clone(ctx => ctx.Resize(image.Width, image.Height));
 
-        string randomText = MessageProcessor.GenerateRandomMessage();
+        string randomText = MessageProcessor.KeepUpConversation().Result;
         var finalImageWithBorder = AddTextToImageWithBorder(finalImage, randomText);
 
         return finalImageWithBorder;
@@ -61,7 +62,7 @@ public class ImageProcessor
 
     public Image<Rgba32> AddTextImageCommand(Image<Rgba32> image)
     {
-        string randomText = MessageProcessor.GenerateRandomMessage();
+        string randomText = MessageProcessor.KeepUpConversation().Result;
 
         AddTopTextToImage(image, randomText);
 

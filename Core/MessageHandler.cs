@@ -63,7 +63,6 @@ public partial class MessageHandler
         _saves.AddUserToChat(message.PeerId.Value, message.FromId.Value);
         _saves.Save(SavesFilePath);
 
-        // как же это круто!
         UserRequest request = new UserRequest(message, config);
 
         request.onPayload = (string payload) =>
@@ -71,16 +70,16 @@ public partial class MessageHandler
             HandlePayload(api, request.Message, groupId);
         };
 
-        request.onSimpleText = () =>
+        request.onSimpleText = async (message) =>
         {
             if (_random.NextDouble() < config.ResponseProbability)
             {
-                var responseMessage = MessageProcessor.GenerateRandomMessage();
+                var responseMessage = await MessageProcessor.KeepUpConversation(message);
                 SendResponse(api, message.PeerId.Value, responseMessage);
             }
         };
 
-        request.onCommand = ((string command, string args) commargs) =>
+        request.onCommand = async ((string command, string args) commargs) =>
         {
             Console.WriteLine($"{commargs.command}, args:{commargs.args}");
             switch (commargs.command)
@@ -135,14 +134,14 @@ public partial class MessageHandler
                     HandlePhotoCommand(api, message, groupId, request.Text, commargs.command, config);
                     return;
                 case "generate_sentences":
-                    var sentencesResponseMessage = MessageProcessor.GenerateMultipleSentences();
+                    var sentencesResponseMessage = await MessageProcessor.KeepUpConversation();
                     SendResponse(api, message.PeerId.Value, sentencesResponseMessage);
                     return;
                 case "echo":
                     SendResponse(api, message.PeerId.Value, request.Text);
                     return;
                 default:
-                    var defaultMessage = MessageProcessor.GenerateRandomMessage();
+                    var defaultMessage = await MessageProcessor.KeepUpConversation();
                     SendResponse(api, message.PeerId.Value, defaultMessage);
                     return;
             }

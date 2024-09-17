@@ -1,4 +1,5 @@
 ﻿using vkbot_vitalya.Config;
+using vkbot_vitalya.Core;
 using VkNet;
 using VkNet.Exception;
 using VkNet.Model;
@@ -7,85 +8,91 @@ namespace vkbot_vitalya;
 
 public static class Program
 {
-    private static VkApi api = new VkApi();
-    private static Conf config;
-    private static Authentication auth;
-    private static MessageHandler messageHandler;
-    public static readonly string MessagesFilePath = "./messages.txt";
+    private static VkApi? _api;
+    private static Conf? _config;
+    private static Authentication? _authentication;
+    private static MessageHandler? _handler;
+    private static ExceptDict? _exceptDict;
+
+    public static string _savedMessagesFolder = Path.Combine(Environment.CurrentDirectory, "SavedMessages");
+    private static string _logFilePath = "./log.txt";
+    private static string _authPath = "./auth.json";
+    private static string _configPath = "./config.json";
 
     private static ManualResetEvent _shutdownEvent = new ManualResetEvent(false);
 
-    public static void Main(string[] args)
+    private static void Main(string[] args)
     {
         Console.ForegroundColor = ConsoleColor.White;
 
-        var logFilePath = "./log.txt";
-        File.AppendAllText(logFilePath, $"Bot started at {DateTime.Now}\n");
+        File.AppendAllText(_logFilePath, $"Bot started at {DateTime.Now}\n");
 
-        var authPath = "./auth.json";
-        var configPath = "./config.json";
-
-        if (!File.Exists(authPath) || !File.Exists(configPath))
+        if (!File.Exists(_authPath) || !File.Exists(_configPath))
         {
-            File.AppendAllText(logFilePath, $"Auth file or config file is missing\n");
+            File.AppendAllText(_logFilePath, $"Auth file or config file is missing\n");
             return;
         }
 
-        auth = Authentication.GetAuthBotFileFromJson(authPath);
-        config = Conf.GetConfigFromJson(configPath);
+        _authentication = Authentication.GetAuthBotFileFromJson(_authPath);
+        _config = Conf.GetConfigFromJson(_configPath);
+        _exceptDict = new ExceptDict(_config);
 
-        if (auth == null || config == null)
+        if (_authentication == null || _config == null)
         {
-            File.AppendAllText(logFilePath, "Auth file or config file is NULL\n");
+            File.AppendAllText(_logFilePath, "Auth file or config file is NULL\n");
             return;
         }
 
-        messageHandler = new MessageHandler(auth, true);
+        _handler = new MessageHandler(_authentication, true);
+        _api = new VkApi();
 
         try
         {
-            api.Authorize(new ApiAuthParams { AccessToken = auth.AccessToken });
-            File.AppendAllText(logFilePath, "Authorization successful\n");
+            _api.Authorize(new ApiAuthParams { AccessToken = _authentication.AccessToken });
+            File.AppendAllText(_logFilePath, "Authorization successful\n");
         }
         catch (Exception ex)
         {
-            File.AppendAllText(logFilePath, $"Authorization failed: {ex.Message}\n");
+            File.AppendAllText(_logFilePath, $"Authorization failed: {ex.Message}\n");
             Console.WriteLine($"Authorization failed: {ex.Message}");
             return;
         }
 
-        File.AppendAllText(logFilePath, "Bot is running...\n");
+        File.AppendAllText(_logFilePath, "Bot is running...\n");
         Console.WriteLine("Bot is running...");
 
         SetupSignalHandling();
 
         try
         {
-            var longPollServer = api.Groups.GetLongPollServer(auth.GroupId);
-            StartLongPoll(longPollServer, auth.GroupId);
+            var longPollServer = _api.Groups.GetLongPollServer(_authentication.GroupId);
+            StartLongPoll(longPollServer, _authentication.GroupId);
         }
         catch (Exception ex)
         {
-            File.AppendAllText(logFilePath, $"Error in long poll: {ex.Message}\n");
+            File.AppendAllText(_logFilePath, $"Error in long poll: {ex.Message}\n");
             Console.WriteLine($"Error in long poll: {ex.Message}");
             return;
         }
 
-        // Keep the application running
-        File.AppendAllText(logFilePath, "Entering infinite loop, waiting for termination signal\n");
+        // Keep the vitalya running
+        File.AppendAllText(_logFilePath, "Entering infinite loop, waiting for termination signal\n");
         _shutdownEvent.WaitOne();
-        File.AppendAllText(logFilePath, $"Bot stopped at {DateTime.Now}\n");
+        File.AppendAllText(_logFilePath, $"Bot stopped at {DateTime.Now}\n");
     }
 
     private static async void StartLongPoll(LongPollServerResponse longPollServer, ulong groupId)
     {
         var lastUpdateTs = longPollServer.Ts;
 
+        if (_api == null || _handler == null || _config == null || _exceptDict == null)
+            return;
+
         while (true)
         {
             try
             {
-                var poll = await api.Groups.GetBotsLongPollHistoryAsync(
+                var poll = await _api.Groups.GetBotsLongPollHistoryAsync(
                     new BotsLongPollHistoryParams
                     {
                         Server = longPollServer.Server,
@@ -104,15 +111,16 @@ public static class Program
                         Console.WriteLine($"New message from {message.FromId}: {message.Text}");
                         File.AppendAllText("./log.txt", $"New message from {message.FromId}: {message.Text}\n");
 
-                        bool isBotAddressed = config.BotNames.Any(message.Text.StartsWith);
+                        bool dontSave = _exceptDict.GetExceptions().Any(message.Text.StartsWith);
+
                         // Save message to file
-                        if (!isBotAddressed)
-                            SaveMessageToFile(message.Text);
+                        if (!dontSave)
+                            await SaveMessage(message);
 
                         // Call message handler
                         try
                         {
-                            messageHandler.HandleMessage(api, message, config, groupId);
+                            _handler.HandleMessage(_api, message, _config, groupId);
                         }
                         catch (Exception ex)
                         {
@@ -129,7 +137,7 @@ public static class Program
             catch (LongPollKeyExpiredException)
             {
                 // Refresh longPollServer for correct work
-                longPollServer = api.Groups.GetLongPollServer(groupId);
+                longPollServer = _api.Groups.GetLongPollServer(groupId);
             }
             catch (Exception ex)
             {
@@ -153,11 +161,41 @@ public static class Program
         };
     }
 
-    private static void SaveMessageToFile(string message)
+    private static async Task SaveMessage(Message? message)
     {
-        using (StreamWriter sw = new StreamWriter(MessagesFilePath, true))
+        if(message != null)
         {
-            sw.WriteLine(message);
+            if (!Directory.Exists(_savedMessagesFolder)) 
+                Directory.CreateDirectory(_savedMessagesFolder);
+
+            var fullPath = Path.Combine(_savedMessagesFolder, ChatMessages.GetFileName(message.PeerId?.ToString()));
+            if (File.Exists(fullPath))
+            {
+                ChatMessages saved = await ChatMessages.Deserialize(fullpath: fullPath);
+
+                if (saved)
+                {
+                    await saved.Update(_savedMessagesFolder, message);
+                }
+                else
+                {
+                    Logger.M($"{nameof(Program)}: saved == NULL");
+                    return;
+                }
+            }
+            else
+            {
+                ChatMessage message1 = new ChatMessage(message.FromId, message.Text, message.Date, message.ConversationMessageId);
+                var messages = new List<ChatMessage>()
+                {
+                    // add required words if required
+                    message1
+                };
+
+                ChatMessages save = new ChatMessages(message.PeerId, messages); 
+
+                await save.Save(_savedMessagesFolder, message);
+            }
         }
     }
 }

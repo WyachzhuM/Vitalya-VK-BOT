@@ -10,6 +10,7 @@ using System.Threading.Tasks;
 using VkNet.Utils;
 using vkbot_vitalya.Config;
 using VkNet.Model;
+using vkbot_vitalya.Core.Requesters;
 
 namespace vkbot_vitalya.Services;
 
@@ -21,31 +22,10 @@ public class SafebooruApi
 
     public SafebooruApi(Authentication auth)
     {
-        var proxy = new System.Net.WebProxy
-        {
-            Address = new Uri(auth.ProxyAdress),
-            BypassProxyOnLocal = false,
-            UseDefaultCredentials = false,
-            Credentials = new NetworkCredential(userName: auth.ProxyLogin, password: auth.ProxyPassword)
-        };
-
-        var handler = new HttpClientHandler
-        {
-            Proxy = proxy,
-            UseProxy = true,
-            ServerCertificateCustomValidationCallback = (message, cert, chain, errors) => true // Disable SSL certificate validation for testing purposes
-        };
-
-        Client = new HttpClient(handler);
-        Client.DefaultRequestHeaders.UserAgent.ParseAdd("vitalya-vk-bot/1.0 (compatible; vitalya-vk-bot/1.0; +http://vitalya-vk-bot.com)");
+        Client = ProxyClient.GetProxyHttpClient(auth.ProxyAdress, new NetworkCredential(auth.ProxyLogin, auth.ProxyPassword), "vk-bot-vitalya");
     }
 
     private HttpClient Client { get; set; }
-
-    private async Task DelayBetweenRequests()
-    {
-        await Task.Delay(1000);
-    }
 
     public async Task<SafebooruPost> GetRandomPostAsync(string tags)
     {
@@ -73,7 +53,7 @@ public class SafebooruApi
         string url = BASE_URL + $"index.php?page=dapi&s=post&q=index&limit=200&json=1&pid={randomPage}&tags={incTags}";
 
         // Задержка перед выполнением запроса
-        await DelayBetweenRequests();
+        await Task.Delay(1000);
 
         HttpResponseMessage response = await Client.GetAsync(url);
         Console.WriteLine($"Response Status Code: {response.StatusCode}");
@@ -132,7 +112,7 @@ public class SafebooruApi
         string url = BASE_URL + $"index.php?page=dapi&s=post&q=index&limit=1&json=1&tags={incTags}";
 
         // Задержка перед выполнением запроса
-        await DelayBetweenRequests();
+        await Task.Delay(1000);
 
         HttpResponseMessage response = await Client.GetAsync(url);
         if (response.IsSuccessStatusCode)

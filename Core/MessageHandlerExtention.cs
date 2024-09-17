@@ -21,7 +21,7 @@ namespace vkbot_vitalya;
 /// </summary>
 public partial class MessageHandler
 {
-    private void HandlePhotoCommand(VkApi api, Message message, ulong groupId, string command, string actualCommand, Conf config)
+    private async Task HandlePhotoCommand(VkApi api, Message message, ulong groupId, string command, string actualCommand, Conf config)
     {
         // Get attachments from message
         var attachments = message.Attachments;
@@ -64,7 +64,7 @@ public partial class MessageHandler
                         default:
                             Console.WriteLine("No matching command found. Generating random message.");
                             File.AppendAllText("./log.txt", "No matching command found. Generating random message.\n");
-                            var responseMessage = MessageProcessor.GenerateRandomMessage();
+                            var responseMessage = await MessageProcessor.KeepUpConversation();
                             SendResponse(api, message.PeerId.Value, responseMessage);
                             break;
                     }
@@ -91,7 +91,7 @@ public partial class MessageHandler
             {
                 Console.WriteLine("Command 'Generate Sentences' recognized.");
                 File.AppendAllText("./log.txt", "Command 'Generate Sentences' recognized.\n");
-                var responseMessage = MessageProcessor.GenerateMultipleSentences();
+                var responseMessage = await MessageProcessor.KeepUpConversation();
                 SendResponse(api, message.PeerId.Value, responseMessage);
             }
             else if (command.Contains(config.Commands["echo"].First(), StringComparison.OrdinalIgnoreCase))
@@ -237,6 +237,8 @@ public partial class MessageHandler
                 Console.WriteLine("Meme uploaded to VK.");
                 File.AppendAllText("./log.txt", "Meme uploaded to VK.\n");
 
+                string text = await MessageProcessor.KeepUpConversation();
+
                 // Send the saved meme image in a message
                 api.Messages.Send(new MessagesSendParams
                 {
@@ -244,7 +246,7 @@ public partial class MessageHandler
                     PeerId = message.PeerId.Value,
                     ReplyTo = message.Id,
                     Attachments = savedPhotos,
-                    Message = MessageProcessor.GenerateRandomMessage()
+                    Message = text
                 });
 
                 Console.WriteLine("Meme sent to user.");
@@ -540,6 +542,8 @@ public partial class MessageHandler
             Console.WriteLine("location uploaded to VK.");
             File.AppendAllText("./log.txt", "Location photo uploaded to VK.\n");
 
+            string text = await MessageProcessor.KeepUpConversation();
+
             // Send the saved meme image in a message
             api.Messages.Send(new MessagesSendParams
             {
@@ -547,7 +551,7 @@ public partial class MessageHandler
                 PeerId = message.PeerId.Value,
                 ReplyTo = message.Id,
                 Attachments = savedPhotos,
-                Message = $"{location} {MessageProcessor.GenerateRandomMessage()} \n{output.Item2.Item1}\n{output.Item2.Item2}",
+                Message = $"{location} {text} \n{output.Item2.Item1}\n{output.Item2.Item2}",
                 //Lat = long.Parse(output.Item2.lat),
                 //Longitude = long.Parse(output.Item2.lon)
             });

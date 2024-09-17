@@ -6,6 +6,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using vkbot_vitalya.Config;
+using vkbot_vitalya.Core.Requesters;
 using VkNet.Model;
 
 namespace vkbot_vitalya.Services;
@@ -33,23 +34,7 @@ public class DanbooruApi
         ApiKey = auth.DanbooruApikey;
         Login = auth.DanbooruLogin;
 
-        var proxy = new WebProxy
-        {
-            Address = new Uri(auth.ProxyAdress),
-            BypassProxyOnLocal = false,
-            UseDefaultCredentials = false,
-            Credentials = new NetworkCredential(userName: auth.ProxyLogin, password: auth.ProxyPassword)
-        };
-
-        var handler = new HttpClientHandler
-        {
-            Proxy = proxy,
-            UseProxy = true,
-            ServerCertificateCustomValidationCallback = (message, cert, chain, errors) => true // Disable SSL certificate validation for testing purposes
-        };
-
-        Client = new HttpClient(handler);
-        Client.DefaultRequestHeaders.UserAgent.ParseAdd("vitalya-vk-bot/1.0 (compatible; vitalya-vk-bot/1.0; +http://vitalya-vk-bot.com)");
+        Client = ProxyClient.GetProxyHttpClient(auth.ProxyAdress, new NetworkCredential(auth.ProxyLogin, auth.ProxyPassword), "vk-bot-vitalya");
 
         var byteArray = Encoding.ASCII.GetBytes($"{Login}:{ApiKey}");
         Client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic", Convert.ToBase64String(byteArray));

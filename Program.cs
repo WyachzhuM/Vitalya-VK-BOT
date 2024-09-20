@@ -1,5 +1,7 @@
 ﻿using vkbot_vitalya.Config;
 using vkbot_vitalya.Core;
+using vkbot_vitalya.Core.Saver;
+using vkbot_vitalya.Services.Generators.TextGeneration;
 using VkNet;
 using VkNet.Exception;
 using VkNet.Model;
@@ -13,6 +15,7 @@ public static class Program
     private static Authentication? _authentication;
     private static MessageHandler? _handler;
     private static ExceptDict? _exceptDict;
+    private static MessageSaver? _messageSaver;
 
     public static string _savedMessagesFolder = Path.Combine(Environment.CurrentDirectory, "SavedMessages");
     private static string _logFilePath = "./log.txt";
@@ -21,7 +24,7 @@ public static class Program
 
     private static ManualResetEvent _shutdownEvent = new ManualResetEvent(false);
 
-    private static void Main(string[] args)
+    public static void Main(string[] args)
     {
         Console.ForegroundColor = ConsoleColor.White;
 
@@ -36,6 +39,7 @@ public static class Program
         _authentication = Authentication.GetAuthBotFileFromJson(_authPath);
         _config = Conf.GetConfigFromJson(_configPath);
         _exceptDict = new ExceptDict(_config);
+        _messageSaver = new MessageSaver(_savedMessagesFolder);
 
         if (_authentication == null || _config == null)
         {
@@ -114,8 +118,8 @@ public static class Program
                         bool dontSave = _exceptDict.GetExceptions().Any(message.Text.StartsWith);
 
                         // Save message to file
-                        if (!dontSave)
-                            await SaveMessage(message);
+                        if (!dontSave && _messageSaver != null)
+                            await _messageSaver.SaveMessage(message);
 
                         // Call message handler
                         try
@@ -159,43 +163,5 @@ public static class Program
         {
             _shutdownEvent.Set();
         };
-    }
-
-    private static async Task SaveMessage(Message? message)
-    {
-        if(message != null)
-        {
-            if (!Directory.Exists(_savedMessagesFolder)) 
-                Directory.CreateDirectory(_savedMessagesFolder);
-
-            var fullPath = Path.Combine(_savedMessagesFolder, ChatMessages.GetFileName(message.PeerId?.ToString()));
-            if (File.Exists(fullPath))
-            {
-                ChatMessages saved = await ChatMessages.Deserialize(fullpath: fullPath);
-
-                if (saved)
-                {
-                    await saved.Update(_savedMessagesFolder, message);
-                }
-                else
-                {
-                    Logger.M($"{nameof(Program)}: saved == NULL");
-                    return;
-                }
-            }
-            else
-            {
-                ChatMessage message1 = new ChatMessage(message.FromId, message.Text, message.Date, message.ConversationMessageId);
-                var messages = new List<ChatMessage>()
-                {
-                    // add required words if required
-                    message1
-                };
-
-                ChatMessages save = new ChatMessages(message.PeerId, messages); 
-
-                await save.Save(_savedMessagesFolder, message);
-            }
-        }
     }
 }

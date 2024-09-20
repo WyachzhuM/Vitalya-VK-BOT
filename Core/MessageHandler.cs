@@ -5,6 +5,7 @@ using System.Web;
 using vkbot_vitalya.Config;
 using vkbot_vitalya.Core;
 using vkbot_vitalya.Services.Generators;
+using vkbot_vitalya.Services.Generators.TextGeneration;
 using VkNet;
 using VkNet.Model;
 
@@ -110,6 +111,7 @@ public partial class MessageHandler
                 case "anime":
                     Logger.M("HandleAnimeCommand(api, message, groupId);");
                     HandleAnimeCommand(api, message, groupId);
+
                     return;
                 case "where":
                     if (commargs.args != null)
@@ -131,7 +133,7 @@ public partial class MessageHandler
                 case "liquidate":
                 case "compress":
                 case "add_text":
-                    HandlePhotoCommand(api, message, groupId, request.Text, commargs.command, config);
+                    await HandlePhotoCommand(api, message, groupId, request.Text, commargs.command, config);
                     return;
                 case "generate_sentences":
                     var sentencesResponseMessage = await MessageProcessor.KeepUpConversation();
@@ -148,31 +150,6 @@ public partial class MessageHandler
         };
 
         request.Init();
-    }
-
-
-    private void DeveloperCommands(string actualCommand)
-    {
-        //if (config.BotNames.Any(_command.StartsWith))
-        //{
-        //    var botNameUsed = config.BotNames.First(botName => _command.StartsWith(botName));
-        //    _command = _command.Replace(botNameUsed, "").Trim();
-        //
-        //    foreach (var cmd in config.Commands)
-        //    {
-        //        if (cmd.Value.Any(alias => _command.StartsWith(alias)))
-        //        {
-        //            string actualCommand = cmd.Key;
-        //
-        //            if (actualCommand == "turnoffon")
-        //            {
-        //                string pass = _command.Substring(cmd.Value.First().Length).Trim();
-        //                if (pass == Auth.SystemPassKey) isEnabled = !isEnabled;
-        //                Console.WriteLine($"isEnabled: {isEnabled}");
-        //            }
-        //        }
-        //    }
-        //}
     }
 
     private void SendResponse(VkApi api, long? peerId, string message)

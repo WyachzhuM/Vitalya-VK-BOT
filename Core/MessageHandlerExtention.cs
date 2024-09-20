@@ -7,12 +7,12 @@ using System.Net;
 using System.Text;
 using vkbot_vitalya.Config;
 using vkbot_vitalya.Services;
-using vkbot_vitalya.Services.Generators;
 using VkNet;
 using VkNet.Model;
 using VkNet.Enums.Filters;
 using System;
 using System.Reflection.Emit;
+using vkbot_vitalya.Services.Generators.TextGeneration;
 
 namespace vkbot_vitalya;
 
@@ -347,12 +347,37 @@ public partial class MessageHandler
                 Console.WriteLine("Anime image uploaded to VK.");
                 File.AppendAllText("./log.txt", "Anime image uploaded to VK.\n");
 
+                List<string> variableLabel = new List<string>()
+                {
+                    "Еще!",
+                    "Ещ...е.. а.",
+                    "Ах!! !!",
+                    "Еще!",
+                    "Еще!",
+                    "Еще!",
+                    "Еще!",
+                    "Еще!",
+                    "Еще!",
+                    "Еще!",
+                    "Еще!",
+                    "Еще!",
+                    "Еще!",
+                    "Еще!",
+                    "Еще!",
+                    "Еще!",
+                    "Еще!",
+                    "Еще!",
+                    "ещо"
+                };
+
+                Random random = new Random();
+
                 var b = new MessageKeyboardButton
                 {
                     Action = new MessageKeyboardButtonAction
                     {
                         Type = VkNet.Enums.StringEnums.KeyboardButtonActionType.Text,
-                        Label = "Еще!",
+                        Label = variableLabel[random.Next(variableLabel.Count)],
                         Payload = JsonConvert.SerializeObject(new { command = "anim", _tags = tags })
                     }
                 };

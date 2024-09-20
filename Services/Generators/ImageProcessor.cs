@@ -4,6 +4,7 @@ using SixLabors.ImageSharp.Drawing.Processing;
 using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp.Processing;
 using System.Numerics;
+using vkbot_vitalya.Services.Generators.TextGeneration;
 using VkNet.Model;
 using Font = SixLabors.Fonts.Font;
 

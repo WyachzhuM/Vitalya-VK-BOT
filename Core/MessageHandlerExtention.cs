@@ -13,6 +13,8 @@ using VkNet.Enums.Filters;
 using System;
 using System.Reflection.Emit;
 using vkbot_vitalya.Services.Generators.TextGeneration;
+using System.Diagnostics;
+using System.Text.RegularExpressions;
 
 namespace vkbot_vitalya;
 
@@ -21,6 +23,8 @@ namespace vkbot_vitalya;
 /// </summary>
 public partial class MessageHandler
 {
+    private Dictionary<long, int> chaosScores = new Dictionary<long, int>(); // Счёт хаоса
+
     private async Task HandlePhotoCommand(VkApi api, Message message, ulong groupId, string command, string actualCommand, Conf config)
     {
         // Get attachments from message
@@ -593,6 +597,179 @@ public partial class MessageHandler
         }
     }
 
+    private async void HandlePythonCommand(VkApi api, Message message, ulong groupId)
+    {
+        string commandText = message.Text.Trim();
+        string[] commandParts = commandText.Split(new[] { ' ' }, 3);
+
+        if (commandParts.Length < 3 || !commandParts[1].Equals("py", StringComparison.OrdinalIgnoreCase))
+        {
+            SendResponse(api, message.PeerId.Value, "Пожалуйста, укажи Python-код после команды, например: `v py print('Hello')`");
+            return;
+        }
+
+        string pythonCode = commandParts[2].Trim();
+        Console.WriteLine($"Received Python code: {pythonCode}");
+        File.AppendAllText("./log.txt", $"Received Python code: {pythonCode}\n");
+
+        string pythonCodeLower = pythonCode.ToLower();
+        if (Regex.IsMatch(pythonCodeLower, @"(os|sys|subprocess|import|exec|eval|\bimp\b|\bort\b)"))
+        {
+            SendResponse(api, message.PeerId.Value, "Использование системных модулей, импорта или опасных функций запрещено.");
+            return;
+        }
+
+        if (pythonCode.Length > 1000)
+        {
+            SendResponse(api, message.PeerId.Value, "Слишком длинный код (максимум 1000 символов).");
+            return;
+        }
+
+        try
+        {
+            string output = await ExecutePythonCode(pythonCode);
+            SendResponse(api, message.PeerId.Value, output.Length > 0 ? output : "Код выполнен, но вывода нет.");
+            Console.WriteLine("Python code executed successfully.");
+            File.AppendAllText("./log.txt", "Python code executed successfully.\n");
+        }
+        catch (Exception ex)
+        {
+            SendResponse(api, message.PeerId.Value, "Ошибка при выполнении кода: " + ex.Message);
+            Console.WriteLine($"Error executing Python code: {ex.Message}");
+            File.AppendAllText("./log.txt", $"Error executing Python code: {ex.Message}\n");
+        }
+    }
+
+    private async Task<string> ExecutePythonCode(string code)
+    {
+        string pythonPath = "python";
+
+        string arguments = $"-c \"{code.Replace("\"", "\\\"")}\"";
+
+        ProcessStartInfo startInfo = new ProcessStartInfo
+        {
+            FileName = pythonPath,
+            Arguments = arguments,
+            RedirectStandardInput = true,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true,
+        };
+
+        using (Process process = new Process { StartInfo = startInfo })
+        {
+            StringBuilder output = new StringBuilder();
+            StringBuilder error = new StringBuilder();
+
+            process.OutputDataReceived += (sender, args) => { if (args.Data != null) output.AppendLine(args.Data); };
+            process.ErrorDataReceived += (sender, args) => { if (args.Data != null) error.AppendLine(args.Data); };
+
+            process.Start();
+            process.BeginOutputReadLine();
+            process.BeginErrorReadLine();
+
+            bool completed = await Task.Run(() => process.WaitForExit(5000));
+
+            if (!completed)
+            {
+                process.Kill();
+                throw new Exception("Код выполнялся слишком долго (более 5 секунд).");
+            }
+
+            process.WaitForExit();
+
+            if (error.Length > 0)
+            {
+                return $"Ошибка: {error.ToString().Trim()}";
+            }
+
+            return output.ToString().Trim();
+        }
+    }
+
+    private async void HandleChaosCommand(VkApi api, Message message, ulong groupId)
+    {
+        string commandText = message.Text.Trim();
+        string[] commandParts = commandText.Split(new[] { ' ' }, 2); // "v chaos"
+
+        if (commandParts.Length < 2 || !commandParts[1].Equals("chaos", StringComparison.OrdinalIgnoreCase))
+        {
+            SendResponse(api, message.PeerId.Value, "Просто напиши: `v chaos`");
+            return;
+        }
+
+        Console.WriteLine("Starting chaos...");
+        File.AppendAllText("./log.txt", "Starting chaos...\n");
+
+        try
+        {
+            var members = await api.Messages.GetConversationMembersAsync(message.PeerId.Value);
+            var randomMember = members.Profiles.OrderBy(x => Guid.NewGuid()).First();
+            long victimId = randomMember.Id;
+
+            string task = GenerateChaosTask(randomMember.FirstName);
+
+            var buttons = new List<MessageKeyboardButton>
+        {
+            new MessageKeyboardButton
+            {
+                Action = new MessageKeyboardButtonAction
+                {
+                    Type = VkNet.Enums.StringEnums.KeyboardButtonActionType.Text,
+                    Label = "Выполнено",
+                    Payload = JsonConvert.SerializeObject(new { command = "chaos_done", victim = victimId })
+                }
+            },
+            new MessageKeyboardButton
+            {
+                Action = new MessageKeyboardButtonAction
+                {
+                    Type = VkNet.Enums.StringEnums.KeyboardButtonActionType.Text,
+                    Label = "Провал",
+                    Payload = JsonConvert.SerializeObject(new { command = "chaos_fail", victim = victimId })
+                }
+            }
+        };
+
+            var keyboard = new MessageKeyboard
+            {
+                Buttons = new List<List<MessageKeyboardButton>> { buttons },
+                Inline = true
+            };
+
+            await api.Messages.SendAsync(new MessagesSendParams
+            {
+                RandomId = new Random().Next(),
+                PeerId = message.PeerId.Value,
+                Message = $"🔥 Хаос начинается! Жертва: [id{victimId}|{randomMember.FirstName} {randomMember.LastName}]\nЗадание: {task}\nГолосуйте!",
+                Keyboard = keyboard
+            });
+
+            Console.WriteLine($"Chaos task assigned to {randomMember.FirstName}: {task}");
+            File.AppendAllText("./log.txt", $"Chaos task assigned to {randomMember.FirstName}: {task}\n");
+        }
+        catch (Exception ex)
+        {
+            SendResponse(api, message.PeerId.Value, "Ошибка хаоса: " + ex.Message);
+            Console.WriteLine($"Error in chaos: {ex.Message}");
+            File.AppendAllText("./log.txt", $"Error in chaos: {ex.Message}\n");
+        }
+    }
+
+    private string GenerateChaosTask(string name)
+    {
+        Random random = new Random();
+        string[] actions = {
+        $"выебать {name}",
+        $"трахнуть {name}",
+        $"написать выебан на жопе {name}",
+        $"пойти нахуй",
+        $"сделать KYS",
+    };
+        return actions[random.Next(actions.Length)];
+    }
+
     #region Settings
     private async void HandleSettingsCommand(VkApi api, Message message, ulong groupId)
     {
@@ -686,6 +863,18 @@ public partial class MessageHandler
                     string tagshen = payload._tags;
                     HandleHCommand(api, message, groupId, tagshen);
                     return;
+
+                case "chaos_done":
+                    long doneVictim = payload.victim;
+                    chaosScores[doneVictim] = chaosScores.GetValueOrDefault(doneVictim) + 1;
+                    SendResponse(api, message.PeerId.Value, $"Задание выполнено! [id{doneVictim}|Жертва] получает +1 хаос-очко. Текущий счёт: {chaosScores[doneVictim]}");
+                    return;
+
+                case "chaos_fail":
+                    long failVictim = payload.victim;
+                    chaosScores[failVictim] = chaosScores.GetValueOrDefault(failVictim) - 1;
+                    SendResponse(api, message.PeerId.Value, $"Задание провалено! [id{failVictim}|Жертва] теряет 1 хаос-очко. Текущий счёт: {chaosScores[failVictim]}");
+                    return;
             }
 
             long userId = message.FromId.Value;
@@ -752,13 +941,7 @@ public static class MessagesExtentions
     {
         string isReply = message.ReplyMessage != null ? $"Reply from userID: {message.ReplyMessage.FromId}" : "Is not reply";
 
-        string formatted = "\n==============================\n" +
-    $"Message_{message.Id}\n" +
-    $"From userID: {message.FromId}\n" +
-    $"In chat: {message.PeerId}\n" +
-    $"Created At: {message.Date}\n" +
-    $"{isReply}\n" +
-    "==============================\n";
+        string formatted = $"from: {message.FromId}, mId:{message.Id} : {message.Date}";
 
         //200000000 для бесед
         if (message.PeerId.ToString().StartsWith("200000000"))

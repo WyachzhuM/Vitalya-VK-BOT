@@ -4,10 +4,25 @@ using VkNet.Model;
 
 namespace vkbot_vitalya;
 
+public class Cmd
+{
+    public Cmd(string commandName, string args)
+    {
+        CommandName = commandName;
+        Args = args;
+    }
+
+    public string CommandName { get; set; }
+    public string Args { get; set; }
+}
+
+/// <summary>
+/// Класс представления сообщения пользователя
+/// </summary>
 public class UserRequest
 {
     public Action<Message>? onSimpleText;
-    public Action<(string command, string args)>? onCommand;
+    public Action<Cmd>? onCommand;
     public Action<string>? onPayload;
 
     private Random random = new Random();
@@ -73,8 +88,10 @@ public class UserRequest
         }
         else if (BotNameUsed != null && ActualCommand != null)
         {
-            Logger.M($"onCommand?.Invoke({Command}, {Keywords})");
-            onCommand?.Invoke((Command, Keywords));
+            Logger.M($"Invoke({Command}, {Keywords})");
+
+            if(Command != null && Keywords != null)
+                onCommand?.Invoke(new Cmd(Command, Keywords));
         }
         else
         {
@@ -106,18 +123,6 @@ public class UserRequest
     private Int32 ID { get; set; }
 
     private Conf Config { get; set; }
-
-    private bool GetBotName(string fulltext, out string BotNameUsed)
-    {
-        if (!Config.BotNames.Any(fulltext.StartsWith))
-        {
-            BotNameUsed = Config.BotNames.First(fulltext.StartsWith);
-            return true;
-        }
-        BotNameUsed = string.Empty;
-
-        return false;
-    }
 
     public override string ToString()
     {

@@ -58,7 +58,6 @@ public class DanbooruApi
             {
                 int page = rand.Next(1, 1000);
 
-                // Если теги не указаны, используем отрицательные теги из excludeTags
                 var tagList = string.IsNullOrWhiteSpace(tags)
                     ? excludeTagsArray.Skip(attempt % (excludeTagsArray.Length / 2) * 2).Take(2).Select(tag => "-" + Uri.EscapeDataString(tag))
                     : tags.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries).Take(2).Select(Uri.EscapeDataString);

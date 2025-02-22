@@ -8,16 +8,28 @@ using System.Threading.Tasks;
 
 namespace vkbot_vitalya.Config;
 
-public record Conf(List<string> BotNames, double ResponseProbability, Dictionary<string, List<string>> Commands, Dictionary<string, JsonElement> AdditionalData)
+public class Conf
 {
+    public Conf(List<string> botNames, double responseProbability, Dictionary<string, List<string>> commands, Dictionary<string, JsonElement> additionalData)
+    {
+        BotNames = botNames;
+        ResponseProbability = responseProbability;
+        Commands = commands;
+        AdditionalData = additionalData;
+    }
+
+    public static Conf? Instance { get; private set; }
+
     [JsonPropertyName("bot_names")]
-    public List<string> BotNames { get; set; } = BotNames;
+    public List<string> BotNames { get; set; }
 
     [JsonPropertyName("response_probability")]
-    public double ResponseProbability { get; set; } = ResponseProbability;
+    public double ResponseProbability { get; set; }
 
     [JsonPropertyName("commands")]
-    public Dictionary<string, List<string>> Commands { get; set; } = Commands;
+    public Dictionary<string, List<string>> Commands { get; set; }
+
+    public Dictionary<string, JsonElement> AdditionalData { get; set; }
 
     public static Conf? GetConfigFromJson(string path)
     {
@@ -26,54 +38,11 @@ public record Conf(List<string> BotNames, double ResponseProbability, Dictionary
         {
             DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
         };
-
+    
         var result = JsonSerializer.Deserialize<Conf>(json, jsonSerializerOptions);
+
+        Instance = result;
 
         return result;
     }
 }
-
-//public class Conf
-//{
-//    public Conf()
-//    {
-//    }
-//
-//    // Modified constructor to accept multiple bot names and commands
-//    public Conf(List<string> botNames, double responseProbability, Dictionary<string, List<string>> commands)
-//    {
-//        BotNames = botNames;
-//        ResponseProbability = responseProbability;
-//        Commands = commands;
-//    }
-//
-//    // Modified property to hold multiple bot names
-//    [JsonPropertyName("bot_names")]
-//    public List<string> BotNames { get; set; }
-//
-//    [JsonPropertyName("response_probability")]
-//    public double ResponseProbability { get; set; }
-//
-//    // Modified property to hold multiple forms of each command
-//    [JsonPropertyName("commands")]
-//    public Dictionary<string, List<string>> Commands { get; set; }
-//
-//    [JsonExtensionData]
-//    public Dictionary<string, JsonElement> AdditionalData { get; set; }
-//
-//    public static Conf GetConfigFromJson(string path)
-//    {
-//        string json = File.ReadAllText(path);
-//        var options = new JsonSerializerOptions()
-//        {
-//            DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
-//        };
-//        var result = JsonSerializer.Deserialize<Conf>(json, options);
-//        if (result == null)
-//        {
-//            return new Conf();
-//        }
-//        return result;
-//    }
-//}
-

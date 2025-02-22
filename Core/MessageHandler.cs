@@ -16,7 +16,7 @@ public partial class MessageHandler
     private Random _random = new Random();
     private Timer _messageTimer, _updateTimer;
     private VkApi _vkApi;
-    private Conf _config;
+    private Conf? _config = Conf.Instance;
     private ulong _groupId;
     private Saves _saves;
     private List<UserRequest> _userRequests;
@@ -42,13 +42,15 @@ public partial class MessageHandler
     private Authentication Auth { get; set; }
     private bool IsDebug { get; set; }
 
-    public void HandleMessage(VkApi api, Message message, Conf config, ulong groupId)
+    /// <summary>
+    /// Метод загрузки параметров сообщения
+    /// </summary>
+    public void HandleMessage(VkApi api, Message message, ulong groupId)
     {
         this._vkApi = api;
-        this._config = config;
         this._groupId = groupId;
 
-        if (api == null || message == null || config == null)
+        if (api == null || message == null)
         {
             Logger.M("API, message, or config is null");
             return;
@@ -60,88 +62,77 @@ public partial class MessageHandler
             message.Out();
         }
 
-        _saves.AddChat(message.PeerId.Value);
-        _saves.AddUserToChat(message.PeerId.Value, message.FromId.Value);
-        _saves.Save(SavesFilePath);
+        MessageSaving(message);
 
-        UserRequest request = new UserRequest(message, config);
+        UserRequest userMessage = new UserRequest(message, _config);
 
-        request.onPayload = (string payload) =>
+        userMessage.onPayload = (string payload) =>
         {
-            HandlePayload(api, request.Message, groupId);
+            HandlePayload(api, userMessage.Message, groupId);
         };
 
-        request.onSimpleText = async (message) =>
+        userMessage.onSimpleText = async (message) =>
         {
-            if (_random.NextDouble() < config.ResponseProbability)
+            if (_random.NextDouble() < _config.ResponseProbability)
             {
                 var responseMessage = await MessageProcessor.KeepUpConversation(message);
                 SendResponse(api, message.PeerId.Value, responseMessage);
             }
         };
 
-        request.onCommand = async ((string command, string args) commargs) =>
+        userMessage.onCommand = async (Cmd cmd) =>
         {
-            Console.WriteLine($"{commargs.command}, args:{commargs.args}");
-            switch (commargs.command)
+
+
+            switch (cmd.CommandName)
             {
                 case "meme":
-                    if (commargs.args != null)
-                    {
-                        HandleMemeCommand(api, message, groupId, commargs.args);
-                    }
-                    else
-                    {
-                        // say about it
-                    }
+                    HandleMemeCommand(api, message, groupId, cmd.Args);
+
                     return;
                 case "weather":
-                    if (commargs.args != null)
-                    {
-                        HandleWeatherCommand(api, message, commargs.args);
-                    }
-                    else
-                    {
-                        // say about it
-                    }
+                    HandleWeatherCommand(api, message, cmd.Args);
+
                     return;
                 case "hentai":
                     HandleHCommand(api, message, groupId);
+
                     return;
                 case "anime":
-                    Logger.M("HandleAnimeCommand(api, message, groupId);");
                     HandleAnimeCommand(api, message, groupId);
 
                     return;
                 case "where":
-                    if (commargs.args != null)
-                    {
-                        HandleSearchCommand(api, message, groupId, commargs.args);
-                    }
-                    else
-                    {
-                        // say about it
-                    }
+                    HandleSearchCommand(api, message, groupId, cmd.Args);
+
                     return;
                 case "help":
                     HandleHelpCommand(api, message, groupId);
                     return;
                 case "settings":
                     HandleSettingsCommand(api, message, groupId);
+
                     return;
-                case "break":
-                case "liquidate":
-                case "compress":
-                case "add_text":
-                    await HandlePhotoCommand(api, message, groupId, request.Text, commargs.command, config);
+                case "py":
+                    Console.WriteLine("Command 'Python' recognized.");
+                    File.AppendAllText("./log.txt", "Command 'Python' recognized.\n");
+                    HandlePythonCommand(api, message, groupId);
                     return;
+
                 case "generate_sentences":
                     var sentencesResponseMessage = await MessageProcessor.KeepUpConversation();
                     SendResponse(api, message.PeerId.Value, sentencesResponseMessage);
                     return;
                 case "echo":
-                    SendResponse(api, message.PeerId.Value, request.Text);
+                    SendResponse(api, message.PeerId.Value, userMessage.Text);
                     return;
+
+                case "chaos":
+                    Console.WriteLine("Command 'Chaos' recognized.");
+                    File.AppendAllText("./log.txt", "Command 'Chaos' recognized.\n");
+                    HandleChaosCommand(api, message, groupId);
+                    return;
+
                 default:
                     var defaultMessage = await MessageProcessor.KeepUpConversation();
                     SendResponse(api, message.PeerId.Value, defaultMessage);
@@ -149,7 +140,14 @@ public partial class MessageHandler
             }
         };
 
-        request.Init();
+        userMessage.Init();
+    }
+
+    private void MessageSaving(Message message)
+    {
+        _saves.AddChat(message.PeerId.Value);
+        _saves.AddUserToChat(message.PeerId.Value, message.FromId.Value);
+        _saves.Save(SavesFilePath);
     }
 
     private void SendResponse(VkApi api, long? peerId, string message)

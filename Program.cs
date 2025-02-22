@@ -124,7 +124,7 @@ public static class Program
                         // Call message handler
                         try
                         {
-                            _handler.HandleMessage(_api, message, _config, groupId);
+                            _handler.HandleMessage(_api, message, groupId);
                         }
                         catch (Exception ex)
                         {

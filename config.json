@@ -1,5 +1,5 @@
 {
-  "bot_names": [ "виталя", "вит", "валера", "@pan_propalbot", "vit", "v"],
+  "bot_names": [ "виталя", "вит", "валера", "@pan_propalbot", "[pan_propalbot|@pan_propalbot]", "[club227202883|@pan_propalbot]", "vit", "v" ],
   "response_probability": 0.08,
   "commands": {
     "generate_sentences": [ "/generate_sentences", "пизди", "gen" ],
@@ -15,6 +15,7 @@
     "help": [ "помощь", "help", "помоги" ],
     "where": [ "где", "найди", "откуда", "w" ],
     "settings": [ "настройки", "н", "set", "s" ],
-    "turnoffon": [ "pip", "pipa", "pipapipa" ]
+    "turnoffon": [ "pip", "pipa", "pipapipa" ],
+    "chaos": [ "хаос", "chaos", "c" ]
   }
 }

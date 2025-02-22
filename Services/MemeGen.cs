@@ -4,6 +4,7 @@ using vkbot_vitalya.Config;
 
 namespace vkbot_vitalya.Services;
 
+[Obsolete]
 public class MemeGen
 {
     public MemeGen(Authentication auth)

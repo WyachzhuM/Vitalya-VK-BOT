@@ -15,6 +15,8 @@ using System.Reflection.Emit;
 using vkbot_vitalya.Services.Generators.TextGeneration;
 using System.Diagnostics;
 using System.Text.RegularExpressions;
+using vkbot_vitalya.Core;
+using vkbot_vitalya.Services.Generators;
 
 namespace vkbot_vitalya;
 
@@ -638,6 +640,72 @@ public partial class MessageHandler
             Console.WriteLine($"Error executing Python code: {ex.Message}");
             File.AppendAllText("./log.txt", $"Error executing Python code: {ex.Message}\n");
         }
+    }
+    
+    private static Image<Rgba32>? FindImageInMessage(Message message) {
+        var attachments = message.Attachments;
+        if (attachments is not { Count: > 0 } || attachments[0].Instance is not Photo photo) return null;
+        var largestPhoto = photo.Sizes?.OrderByDescending(s => s.Width * s.Height).FirstOrDefault();
+        var photoUrl = largestPhoto?.Url?.AbsoluteUri;
+        if (photoUrl == null) return null;
+        using var webClient = new WebClient();
+        var imageBytes = webClient.DownloadData(photoUrl);
+        using var ms = new MemoryStream(imageBytes);
+        Image<Rgba32> originalImage;
+
+        try {
+            originalImage = SixLabors.ImageSharp.Image.Load<Rgba32>(ms);
+        } catch (Exception e) {
+            Logger.M($"Error loading image: {e.Message}");
+            return null;
+        }
+
+        return originalImage;
+    }
+
+    public void HandleFuneralCommand(VkApi api, Message message, ulong groupId) {
+        var sourceImage = FindImageInMessage(message);
+        if (sourceImage == null) {
+            api.Messages.Send(new MessagesSendParams {
+                Message = "Некого хоронить!",
+                RandomId = _random.Next(),
+                PeerId = message.PeerId.Value
+            });
+            return;
+        }
+
+        var processedImage = ImageProcessor.Funeral(sourceImage);
+
+        using var webClient = new WebClient();
+        var outputPath = "./output.jpg";
+        try {
+            processedImage.Save(outputPath, new JpegEncoder());
+        } catch (Exception e) {
+            Logger.M($"Error saving image: {e.Message}");
+            return;
+        }
+
+        // Get the server for uploading photos
+        var uploadServer = api.Photo.GetMessagesUploadServer((long)groupId).UploadUrl;
+        Logger.M($"Upload URL: {uploadServer}");
+
+        // Upload the processed photo to the server
+        var responseBytes = webClient.UploadFile(uploadServer, outputPath);
+        var responseString = Encoding.ASCII.GetString(responseBytes);
+
+        // Save the processed photo
+        var savedPhotos = api.Photo.SaveMessagesPhoto(responseString);
+        Logger.M("Photo uploaded to VK.");
+
+        api.Messages.Send(new MessagesSendParams {
+            Message = "RIP🥀",
+            RandomId = _random.Next(),
+            PeerId = message.PeerId.Value,
+            // ReplyTo = message.Id,
+            Attachments = savedPhotos
+        });
+
+        Logger.M("Processed photo sent to user.");
     }
 
     private async Task<string> ExecutePythonCode(string code)

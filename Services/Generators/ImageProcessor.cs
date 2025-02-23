@@ -197,21 +197,23 @@ public class ImageProcessor
         }
 
         if (image.Width > maxWidth) {
-            image.Mutate(i => i.Resize(maxWidth, image.Height / (image.Width / maxWidth)));
+            image.Mutate(i => i.Resize(maxWidth, (int)(image.Height / ((float)image.Width / maxWidth))));
         }
 
         if (image.Height > maxHeight) {
-            image.Mutate(i => i.Resize(maxHeight, image.Width / (image.Height / maxHeight)));
+            image.Mutate(i => i.Resize((int)(image.Width / ((float)image.Height / maxHeight)), maxHeight));
         }
 
         image.Mutate(i => i.Grayscale());
 
         var font = SystemFonts.CreateFont("Georgia", 30, FontStyle.Italic);
+        /* I FUCKING LOVE FUNCTIONAL STYLE */
         grave.Mutate(i =>
             i.DrawImage(image, new Point(500 + (maxWidth - image.Width) / 2, 220 + (maxHeight - image.Height) / 2), 1));
-        grave.Mutate(i =>
-            i.DrawText(DateTime.Parse("17.03.1984").ToString("d") + " - " + DateTime.Today.ToString("d"), font,
-                Color.Black, new PointF(465, 500)));
+        grave.Mutate(i => i.DrawText(DateTime.Parse("01.01.1930")
+                    .AddTicks((long)(random.NextDouble()
+                                     * (DateTime.Parse("01.01.2006") - DateTime.Parse("01.01.1930")).Ticks))
+                    .ToString("d") + " - " + DateTime.Today.ToString("d"), font, Color.Black, new PointF(465, 500)));
         grave.Mutate(i =>
             i.DrawText("REST IN PENIS", SystemFonts.CreateFont("Georgia", 40, FontStyle.Italic), Color.Black,
                 new PointF(480, 560)));

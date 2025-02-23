@@ -644,23 +644,26 @@ public partial class MessageHandler
     
     private static Image<Rgba32>? FindImageInMessage(Message message) {
         var attachments = message.Attachments;
-        if (attachments is not { Count: > 0 } || attachments[0].Instance is not Photo photo) return null;
-        var largestPhoto = photo.Sizes?.OrderByDescending(s => s.Width * s.Height).FirstOrDefault();
-        var photoUrl = largestPhoto?.Url?.AbsoluteUri;
-        if (photoUrl == null) return null;
-        using var webClient = new WebClient();
-        var imageBytes = webClient.DownloadData(photoUrl);
-        using var ms = new MemoryStream(imageBytes);
-        Image<Rgba32> originalImage;
+        if (attachments is { Count: > 0 } && attachments[0].Instance is Photo photo) {
+            var largestPhoto = photo.Sizes?.OrderByDescending(s => s.Width * s.Height).FirstOrDefault();
+            var photoUrl = largestPhoto?.Url?.AbsoluteUri;
+            if (photoUrl == null) return null;
+            using var webClient = new WebClient();
+            var imageBytes = webClient.DownloadData(photoUrl);
+            using var ms = new MemoryStream(imageBytes);
+            Image<Rgba32> originalImage;
 
-        try {
-            originalImage = SixLabors.ImageSharp.Image.Load<Rgba32>(ms);
-        } catch (Exception e) {
-            Logger.M($"Error loading image: {e.Message}");
-            return null;
+            try {
+                originalImage = SixLabors.ImageSharp.Image.Load<Rgba32>(ms);
+            } catch (Exception e) {
+                Logger.M($"Error loading image: {e.Message}");
+                return null;
+            }
+
+            return originalImage;
         }
 
-        return originalImage;
+        return message.ReplyMessage != null ? FindImageInMessage(message.ReplyMessage) : null;
     }
 
     public void HandleFuneralCommand(VkApi api, Message message, ulong groupId) {

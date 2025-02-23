@@ -30,4 +30,11 @@
     <PackageReference Include="VkNet" Version="1.78.0" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Remove="grave.png" />
+    <Content Include="grave.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
 </Project>

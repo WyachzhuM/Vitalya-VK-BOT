@@ -132,7 +132,10 @@ public partial class MessageHandler
                     File.AppendAllText("./log.txt", "Command 'Chaos' recognized.\n");
                     HandleChaosCommand(api, message, groupId);
                     return;
-
+                case "funeral":
+                    Logger.M("Command 'Funeral' recognized.");
+                    HandleFuneralCommand(api, message, groupId);
+                    return;
                 default:
                     var defaultMessage = await MessageProcessor.KeepUpConversation();
                     SendResponse(api, message.PeerId.Value, defaultMessage);

@@ -52,13 +52,13 @@ public partial class MessageHandler
 
         if (api == null || message == null)
         {
-            Logger.M("API, message, or config is null");
+            L.M("API, message, or config is null");
             return;
         }
 
         if (IsDebug)
         {
-            Logger.M("New message...");
+            L.M("New message...");
             message.Out();
         }
 
@@ -114,8 +114,7 @@ public partial class MessageHandler
 
                     return;
                 case "py":
-                    Console.WriteLine("Command 'Python' recognized.");
-                    File.AppendAllText("./log.txt", "Command 'Python' recognized.\n");
+                    L.M("Command 'Python' recognized.");
                     HandlePythonCommand(api, message, groupId);
                     return;
 
@@ -128,12 +127,11 @@ public partial class MessageHandler
                     return;
 
                 case "chaos":
-                    Console.WriteLine("Command 'Chaos' recognized.");
-                    File.AppendAllText("./log.txt", "Command 'Chaos' recognized.\n");
+                    L.M("Command 'Chaos' recognized.");
                     HandleChaosCommand(api, message, groupId);
                     return;
                 case "funeral":
-                    Logger.M("Command 'Funeral' recognized.");
+                    L.M("Command 'Funeral' recognized.");
                     HandleFuneralCommand(api, message, groupId);
                     return;
                 default:
@@ -163,8 +161,7 @@ public partial class MessageHandler
                 PeerId = peerId,
                 Message = message
             });
-            Console.WriteLine($"Sent response: {message}");
-            File.AppendAllText("./log.txt", $"Sent response: {message}\n");
+            L.M($"Sent response: {message}");
         }
         else
         {
@@ -183,8 +180,7 @@ public partial class MessageHandler
                 ReplyTo = replyTo,
                 Message = message
             });
-            Console.WriteLine($"Sent response: {message}");
-            File.AppendAllText("./log.txt", $"Sent response: {message}\n");
+            L.M($"Sent response: {message}");
         }
         else
         {
@@ -231,8 +227,7 @@ public partial class MessageHandler
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error sending periodic message: {ex.Message}");
-            File.AppendAllText("./log.txt", $"Error sending periodic message: {ex.Message}\n");
+            L.M($"Error sending periodic message: {ex.Message}");
         }
     }
 

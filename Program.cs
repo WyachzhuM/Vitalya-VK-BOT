@@ -18,7 +18,6 @@ public static class Program
     private static MessageSaver? _messageSaver;
 
     public static string _savedMessagesFolder = Path.Combine(Environment.CurrentDirectory, "SavedMessages");
-    private static string _logFilePath = "./log.txt";
     private static string _authPath = "./auth.json";
     private static string _configPath = "./config.json";
 
@@ -28,11 +27,11 @@ public static class Program
     {
         Console.ForegroundColor = ConsoleColor.White;
 
-        File.AppendAllText(_logFilePath, $"Bot started at {DateTime.Now}\n");
+        L.M($"Bot started at {DateTime.Now}");
 
         if (!File.Exists(_authPath) || !File.Exists(_configPath))
         {
-            File.AppendAllText(_logFilePath, $"Auth file or config file is missing\n");
+            L.M($"Auth file or config file is missing");
             return;
         }
 
@@ -43,7 +42,7 @@ public static class Program
 
         if (_authentication == null || _config == null)
         {
-            File.AppendAllText(_logFilePath, "Auth file or config file is NULL\n");
+            L.M("Auth file or config file is NULL");
             return;
         }
 
@@ -53,17 +52,16 @@ public static class Program
         try
         {
             _api.Authorize(new ApiAuthParams { AccessToken = _authentication.AccessToken });
-            File.AppendAllText(_logFilePath, "Authorization successful\n");
+            L.M("Authorization successful");
         }
         catch (Exception ex)
         {
-            File.AppendAllText(_logFilePath, $"Authorization failed: {ex.Message}\n");
+            L.M($"Authorization failed: {ex.Message}");
             Console.WriteLine($"Authorization failed: {ex.Message}");
             return;
         }
 
-        File.AppendAllText(_logFilePath, "Bot is running...\n");
-        Console.WriteLine("Bot is running...");
+        L.M("Bot is running...");
 
         SetupSignalHandling();
 
@@ -74,15 +72,15 @@ public static class Program
         }
         catch (Exception ex)
         {
-            File.AppendAllText(_logFilePath, $"Error in long poll: {ex.Message}\n");
+            L.M($"Error in long poll: {ex.Message}");
             Console.WriteLine($"Error in long poll: {ex.Message}");
             return;
         }
 
         // Keep the vitalya running
-        File.AppendAllText(_logFilePath, "Entering infinite loop, waiting for termination signal\n");
+        L.M("Entering infinite loop, waiting for termination signal");
         _shutdownEvent.WaitOne();
-        File.AppendAllText(_logFilePath, $"Bot stopped at {DateTime.Now}\n");
+        L.M($"Bot stopped at {DateTime.Now}");
     }
 
     private static async void StartLongPoll(LongPollServerResponse longPollServer, ulong groupId)
@@ -112,8 +110,7 @@ public static class Program
                     if (update.Instance is MessageNew messageNew)
                     {
                         var message = messageNew.Message;
-                        Console.WriteLine($"New message from {message.FromId}: {message.Text}");
-                        File.AppendAllText("./log.txt", $"New message from {message.FromId}: {message.Text}\n");
+                        L.M($"New message from {message.FromId}: {message.Text}");
 
                         bool dontSave = _exceptDict.GetExceptions().Any(message.Text.StartsWith);
 
@@ -128,8 +125,7 @@ public static class Program
                         }
                         catch (Exception ex)
                         {
-                            Console.WriteLine($"Error in HandleMessage: {ex.Message}");
-                            File.AppendAllText("./log.txt", $"Error in HandleMessage: {ex.Message}\n");
+                            L.E($"Error in HandleMessage: {ex.Message}");
                             File.AppendAllText("./log.txt", $"Stack Trace: {ex.StackTrace}\n");
                         }
                     }
@@ -145,8 +141,7 @@ public static class Program
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error: {ex.Message}");
-                File.AppendAllText("./log.txt", $"Error: {ex.Message}\n");
+                L.M($"Error: {ex.Message}");
             }
         }
     }

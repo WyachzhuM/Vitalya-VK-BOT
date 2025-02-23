@@ -83,19 +83,19 @@ public class UserRequest
     {
         if (Payload != null)
         {
-            Logger.M("onPayload?.Invoke");
+            L.M("onPayload?.Invoke");
             onPayload?.Invoke(Payload);
         }
         else if (BotNameUsed != null && ActualCommand != null)
         {
-            Logger.M($"Invoke({Command}, {Keywords})");
+            L.M($"Invoke({Command}, {Keywords})");
 
             if(Command != null && Keywords != null)
                 onCommand?.Invoke(new Cmd(Command, Keywords));
         }
         else
         {
-            Logger.M("onSimpleText?.Invoke");
+            L.M("onSimpleText?.Invoke");
             onSimpleText?.Invoke(Message);
         }
     }

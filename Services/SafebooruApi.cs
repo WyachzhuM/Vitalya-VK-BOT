@@ -9,6 +9,7 @@ using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 using VkNet.Utils;
 using vkbot_vitalya.Config;
+using vkbot_vitalya.Core;
 using VkNet.Model;
 using vkbot_vitalya.Core.Requesters;
 
@@ -52,8 +53,7 @@ public class SafebooruApi
         int postCount = 5;//await GetPostCountAsync(tags);
         if (postCount == 0)
         {
-            Console.WriteLine("No posts found.");
-            File.AppendAllText("./log.txt", "No posts found.\n");
+            L.M("No posts found.");
             return null;
         }
 
@@ -72,8 +72,7 @@ public class SafebooruApi
         await Task.Delay(1000);
 
         HttpResponseMessage response = await Client.GetAsync(url);
-        Console.WriteLine($"Response Status Code: {response.StatusCode}");
-        File.AppendAllText("./log.txt", $"Response Status Code: {response.StatusCode}\n");
+        L.M($"Response Status Code: {response.StatusCode}");
 
         if (response.IsSuccessStatusCode)
         {
@@ -88,35 +87,30 @@ public class SafebooruApi
                     if (posts != null && posts.Count > 0)
                     {
                         cache[tags] = posts; // Кэшируем результаты
-                        Console.WriteLine($"Posts found: {posts.Count}");
-                        File.AppendAllText("./log.txt", $"Posts found: {posts.Count}\n");
+                        L.M($"Posts found: {posts.Count}");
 
                         int randomIndex = rnd.Next(posts.Count);
                         return posts[randomIndex];
                     }
                     else
                     {
-                        Console.WriteLine("No posts found.");
-                        File.AppendAllText("./log.txt", "No posts found.\n");
+                        L.M("No posts found.");
                     }
                 }
                 catch (JsonException jsonEx)
                 {
-                    Console.WriteLine($"JSON deserialization error: {jsonEx.Message}");
-                    File.AppendAllText("./log.txt", $"JSON deserialization error: {jsonEx.Message}\n");
+                    L.M($"JSON deserialization error: {jsonEx.Message}");
                 }
             }
             else
             {
-                Console.WriteLine("Search error detected or response body is empty.");
-                File.AppendAllText("./log.txt", "Search error detected or response body is empty.\n");
+                L.M("Search error detected or response body is empty.");
             }
         }
         else
         {
             string errorContent = await response.Content.ReadAsStringAsync();
-            Console.WriteLine($"Error Content: {errorContent}");
-            File.AppendAllText("./log.txt", $"Error Content: {errorContent}\n");
+            L.M($"Error Content: {errorContent}");
         }
 
         return null;

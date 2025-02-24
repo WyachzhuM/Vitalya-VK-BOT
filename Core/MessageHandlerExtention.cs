@@ -27,156 +27,92 @@ public partial class MessageHandler
 {
     private Dictionary<long, int> chaosScores = new Dictionary<long, int>(); // Счёт хаоса
 
-    private async Task HandlePhotoCommand(VkApi api, Message message, ulong groupId, string command, string actualCommand, Conf config)
-    {
-        // Get attachments from message
-        var attachments = message.Attachments;
-
-        if (attachments != null && attachments.Count > 0 && attachments[0].Instance is Photo photo)
-        {
-            // Get the URL of the largest photo
-            var largestPhoto = photo.Sizes?.OrderByDescending(s => s.Width * s.Height).FirstOrDefault();
-            if (largestPhoto != null)
-            {
-                var photoUrl = largestPhoto.Url?.AbsoluteUri;
-                if (photoUrl != null)
-                {
-                    L.M($"Photo URL: {photoUrl}");
-
-                    // Determine the command and call the appropriate image processing function
-                    switch (actualCommand)
-                    {
-                        case "break":
-                            L.M("Command 'Break' recognized.");
-                            HandleImageCommand(api, message, photoUrl, Processor.BreakImage, groupId);
-                            break;
-                        case "liquidate":
-                            L.M("Command 'Liquidate' recognized.");
-                            HandleImageCommand(api, message, photoUrl, Processor.LiquidateImage, groupId);
-                            break;
-                        case "compress":
-                            L.M("Command 'Compress' recognized.");
-                            HandleImageCommand(api, message, photoUrl, Processor.CompressImage, groupId);
-                            break;
-                        case "add_text":
-                            L.M("Command 'AddText' recognized.");
-                            HandleImageCommand(api, message, photoUrl, Processor.AddTextImageCommand, groupId);
-                            break;
-                        default:
-                            L.M("No matching command found. Generating random message.");
-                            var responseMessage = await MessageProcessor.KeepUpConversation();
-                            SendResponse(api, message.PeerId.Value, responseMessage);
-                            break;
-                    }
-                }
-                else
-                {
-                    L.M("Photo URL is null.");
-                }
-            }
-            else
-            {
-                L.M("No largest photo found.");
-            }
+    private async Task HandlePhotoCommand(VkApi api, Message message, ulong groupId, string command, Conf config) {
+        var image = FindImageInMessage(message);
+        if (image == null) {
+            L.W("Tried to handle photo command, but photo not found.");
+            return;
         }
-        else
-        {
-            L.M("No photo attachments found or attachments are not photos.");
 
-            // Handle cases where message doesn't contain a photo but may still need to respond
-            if (command.Contains(config.Commands["generate_sentences"].First(), StringComparison.OrdinalIgnoreCase))
-            {
-                L.M("Command 'Generate Sentences' recognized.");
+        switch (command) {
+            case "break":
+                L.M("Command 'Break' recognized.");
+                HandleImageCommand(api, message, image, Processor.BreakImage, groupId);
+                break;
+            case "liquidate":
+                L.M("Command 'Liquidate' recognized.");
+                HandleImageCommand(api, message, image, Processor.LiquidateImage, groupId);
+                break;
+            case "compress":
+                L.M("Command 'Compress' recognized.");
+                HandleImageCommand(api, message, image, Processor.CompressImage, groupId);
+                break;
+            case "add_text":
+                L.M("Command 'AddText' recognized.");
+                HandleImageCommand(api, message, image, Processor.AddTextImageCommand, groupId);
+                break;
+            case "funeral":
+                L.M("Command 'Funeral' recognized.");
+                HandleFuneralCommand(api, message, groupId);
+                return;
+            default:
+                L.W("Tried to handle photo command, but command doesn't need a photo. Generating random message.");
                 var responseMessage = await MessageProcessor.KeepUpConversation();
                 SendResponse(api, message.PeerId.Value, responseMessage);
-            }
-            else if (command.Contains(config.Commands["echo"].First(), StringComparison.OrdinalIgnoreCase))
-            {
-                L.M("Command 'Echo' recognized.");
-                var echoText = message.Text.Substring(config.Commands["echo"].First().Length).Trim();
-                SendResponse(api, message.PeerId.Value, echoText);
-            }
+                break;
         }
     }
 
-    private void HandleImageCommand(VkApi api, Message message, string imageUrl, Func<Image<Rgba32>, Image<Rgba32>> imageProcessor, ulong groupId)
-    {
+    private void HandleImageCommand(VkApi api, Message message, Image<Rgba32> originalImage,
+        Func<Image<Rgba32>, Image<Rgba32>> imageProcessor, ulong groupId) {
         L.M("Handling image command...");
 
-        try
-        {
-            using (WebClient webClient = new WebClient())
-            {
-                byte[] imageBytes = webClient.DownloadData(imageUrl);
-                using (MemoryStream ms = new MemoryStream(imageBytes))
-                {
-                    Image<Rgba32> originalImage;
+        try {
+            Image<Rgba32> processedImage;
 
-                    try
-                    {
-                        originalImage = SixLabors.ImageSharp.Image.Load<Rgba32>(ms);
-                    }
-                    catch (Exception e)
-                    {
-                        L.M($"Error loading image: {e.Message}");
-                        return;
-                    }
-
-                    Image<Rgba32> processedImage;
-
-                    try
-                    {
-                        processedImage = imageProcessor(originalImage);
-                    }
-                    catch (Exception e)
-                    {
-                        L.M($"Error processing image: {e.Message}");
-                        return;
-                    }
-
-                    string outputPath = "./output.jpg";
-
-                    try
-                    {
-                        processedImage.Save(outputPath, new JpegEncoder());
-                    }
-                    catch (Exception e)
-                    {
-                        L.M($"Error saving image: {e.Message}");
-                        return;
-                    }
-
-                    L.M("Image processed and saved to disk.");
-
-                    // Get the server for uploading photos
-                    var uploadServer = api.Photo.GetMessagesUploadServer((long)groupId).UploadUrl;
-                    L.M($"Upload URL: {uploadServer}");
-
-                    // Upload the processed photo to the server
-                    var responseBytes = webClient.UploadFile(uploadServer, outputPath);
-                    var responseString = Encoding.ASCII.GetString(responseBytes);
-
-                    // Save the processed photo
-                    var savedPhotos = api.Photo.SaveMessagesPhoto(responseString);
-                    L.M("Photo uploaded to VK.");
-
-                    // Send the saved photo in a message
-                    api.Messages.Send(new MessagesSendParams
-                    {
-                        RandomId = _random.Next(),
-                        PeerId = message.PeerId.Value,
-                        ReplyTo = message.Id,
-                        Attachments = savedPhotos
-                    });
-
-                    L.M("Processed photo sent to user.");
-                }
+            try {
+                processedImage = imageProcessor(originalImage);
+            } catch (Exception e) {
+                L.M($"Error processing image: {e.Message}");
+                return;
             }
-        }
-        catch (Exception ex)
-        {
-            L.M($"Exception in HandleImageCommand: {ex.Message}");
-            L.M($"Stack Trace: {ex.StackTrace}");
+
+            var outputPath = "./output.jpg";
+
+            try {
+                processedImage.Save(outputPath, new JpegEncoder());
+            } catch (Exception e) {
+                L.M($"Error saving image: {e.Message}");
+                return;
+            }
+
+            L.M("Image processed and saved to disk.");
+
+            // Get the server for uploading photos
+            var uploadServer = api.Photo.GetMessagesUploadServer((long)groupId).UploadUrl;
+            L.M($"Upload URL: {uploadServer}");
+
+            // Upload the processed photo to the server
+            using var webClient = new WebClient();
+            var responseBytes = webClient.UploadFile(uploadServer, outputPath);
+            var responseString = Encoding.ASCII.GetString(responseBytes);
+
+            // Save the processed photo
+            var savedPhotos = api.Photo.SaveMessagesPhoto(responseString);
+            L.M("Photo uploaded to VK.");
+
+            // Send the saved photo in a message
+            api.Messages.Send(new MessagesSendParams {
+                RandomId = _random.Next(),
+                PeerId = message.PeerId.Value,
+                ReplyTo = message.Id,
+                Attachments = savedPhotos
+            });
+
+            L.M("Processed photo sent to user.");
+        } catch (Exception ex) {
+            L.E($"Exception in HandleImageCommand: {ex.Message}");
+            L.E($"Stack Trace: {ex.StackTrace}");
         }
     }
 

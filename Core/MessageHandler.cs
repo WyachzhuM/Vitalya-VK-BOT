@@ -130,13 +130,9 @@ public partial class MessageHandler
                     L.M("Command 'Chaos' recognized.");
                     HandleChaosCommand(api, message, groupId);
                     return;
-                case "funeral":
-                    L.M("Command 'Funeral' recognized.");
-                    HandleFuneralCommand(api, message, groupId);
-                    return;
                 default:
-                    var defaultMessage = await MessageProcessor.KeepUpConversation();
-                    SendResponse(api, message.PeerId.Value, defaultMessage);
+                    /* Больше некуда это вставлять */
+                    await HandlePhotoCommand(api, message, groupId, cmd.CommandName, _config);
                     return;
             }
         };

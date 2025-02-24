@@ -7,16 +7,20 @@ public static class L {
         Console.ForegroundColor = ConsoleColor.White;
         File.AppendAllText("./log.txt", $"[{DateTime.Now}] {message}\n");
     }
-    
+
     public static void M(string message) {
         Log(message, ConsoleColor.Gray);
     }
-    
+
     public static void W(string message) {
         Log(message, ConsoleColor.Yellow);
     }
-    
+
     public static void E(string message) {
         Log(message, ConsoleColor.Red);
+    }
+
+    public static void E(Exception ex) {
+        E(ex.ToString());
     }
 }

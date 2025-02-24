@@ -1,16 +1,8 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Net.Http.Headers;
-using System.Net;
-using System.Text;
+﻿using System.Net;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using System.Threading.Tasks;
-using VkNet.Utils;
 using vkbot_vitalya.Config;
 using vkbot_vitalya.Core;
-using VkNet.Model;
 using vkbot_vitalya.Core.Requesters;
 
 namespace vkbot_vitalya.Services;
@@ -39,7 +31,7 @@ public class SafebooruApi
 
     private HttpClient Client { get; set; }
 
-    public async Task<SafebooruPost> GetRandomPostAsync(string tags)
+    public async Task<SafebooruPost?> GetRandomPostAsync(string tags)
     {
         // Кэширование результатов
         if (cache.ContainsKey(tags) && cache[tags].Count > 0)
@@ -70,8 +62,14 @@ public class SafebooruApi
 
         // Задержка перед выполнением запроса
         await Task.Delay(1000);
+        HttpResponseMessage response;
+        try {
+            response = await Client.GetAsync(url);
+        } catch (HttpRequestException e) {
+            L.E(e);
+            return null;
+        }
 
-        HttpResponseMessage response = await Client.GetAsync(url);
         L.M($"Response Status Code: {response.StatusCode}");
 
         if (response.IsSuccessStatusCode)
@@ -123,8 +121,14 @@ public class SafebooruApi
 
         // Задержка перед выполнением запроса
         await Task.Delay(1000);
+        HttpResponseMessage response;
+        try {
+            response = await Client.GetAsync(url);
+        } catch (HttpRequestException e) {
+            L.E(e);
+            return 0;
+        }
 
-        HttpResponseMessage response = await Client.GetAsync(url);
         if (response.IsSuccessStatusCode)
         {
             string responseBody = await response.Content.ReadAsStringAsync();

@@ -1,4 +1,5 @@
-﻿using vkbot_vitalya.Config;
+﻿using System.Text;
+using vkbot_vitalya.Config;
 using vkbot_vitalya.Core;
 using VkNet.Model;
 
@@ -124,8 +125,25 @@ public class UserRequest
 
     private Conf Config { get; set; }
 
-    public override string ToString()
-    {
-        return $"ID: '{ID}', Text: '{Text}', Command: '{Command}', ActualCommand: '{ActualCommand}', Keywords: '{Keywords}', BotNameUsed: '{BotNameUsed}',\nPayload:\n{Payload}\n";
+    public override string ToString() {
+        var sb = new StringBuilder().Append($"ID: {ID}', Text: '{Text}'");
+        if (Command != null) {
+            sb.Append($", Command: '{Command}'");
+        }
+
+        if (ActualCommand != null) {
+            sb.Append($", ActualCommand: '{ActualCommand}'");
+        }
+
+        if (Keywords is { Length: > 0 }) {
+            sb.Append($", Keywords: '{Keywords}'");
+        }
+
+        sb.Append($", BotNameUsed: '{BotNameUsed}'");
+        if (Payload is { Length: > 0 }) {
+            sb.Append($"\nPayload:\n{Payload}");
+        }
+
+        return sb.ToString();
     }
 }

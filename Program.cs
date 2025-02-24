@@ -1,4 +1,5 @@
-﻿using vkbot_vitalya.Config;
+﻿using System.Text;
+using vkbot_vitalya.Config;
 using vkbot_vitalya.Core;
 using vkbot_vitalya.Core.Saver;
 using vkbot_vitalya.Services.Generators.TextGeneration;
@@ -25,6 +26,7 @@ public static class Program
 
     public static void Main(string[] args)
     {
+        Console.OutputEncoding = Encoding.Unicode;
         Console.ForegroundColor = ConsoleColor.White;
 
         L.M($"Bot started at {DateTime.Now}");

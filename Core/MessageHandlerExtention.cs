@@ -1,22 +1,21 @@
-﻿using Newtonsoft.Json;
+﻿using System.Collections.ObjectModel;
+using Newtonsoft.Json;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Formats.Jpeg;
 using SixLabors.ImageSharp.PixelFormats;
-using System.Collections.Generic;
 using System.Net;
 using System.Text;
 using vkbot_vitalya.Config;
 using vkbot_vitalya.Services;
 using VkNet;
 using VkNet.Model;
-using VkNet.Enums.Filters;
-using System;
-using System.Reflection.Emit;
 using vkbot_vitalya.Services.Generators.TextGeneration;
 using System.Diagnostics;
+using System.Net.Http.Headers;
 using System.Text.RegularExpressions;
 using vkbot_vitalya.Core;
 using vkbot_vitalya.Services.Generators;
+using Image = SixLabors.ImageSharp.Image;
 
 namespace vkbot_vitalya;
 
@@ -28,7 +27,7 @@ public partial class MessageHandler
     private Dictionary<long, int> chaosScores = new Dictionary<long, int>(); // Счёт хаоса
 
     private async Task HandlePhotoCommand(VkApi api, Message message, ulong groupId, string command, Conf config) {
-        var image = FindImageInMessage(message);
+        var image = await FindImageInMessage(message);
         if (image == null) {
             L.W("Tried to handle photo command, but photo not found.");
             return;
@@ -63,50 +62,34 @@ public partial class MessageHandler
         }
     }
 
-    private void HandleImageCommand(VkApi api, Message message, Image<Rgba32> originalImage,
+    private async void HandleImageCommand(VkApi api, Message message, Image<Rgba32> originalImage,
         Func<Image<Rgba32>, Image<Rgba32>> imageProcessor, ulong groupId) {
         L.M("Handling image command...");
 
         try {
             Image<Rgba32> processedImage;
-
+            var sw = new Stopwatch();
             try {
+                sw.Start();
                 processedImage = imageProcessor(originalImage);
+                sw.Stop();
+                L.M($"Image processing took {sw.ElapsedMilliseconds} ms");
             } catch (Exception e) {
-                L.M($"Error processing image: {e.Message}");
+                L.E($"Error processing image: {e.Message}");
                 return;
             }
 
-            var outputPath = "./output.jpg";
-
-            try {
-                processedImage.Save(outputPath, new JpegEncoder());
-            } catch (Exception e) {
-                L.M($"Error saving image: {e.Message}");
+            var photos = await UploadImageToVk(api, processedImage, groupId);
+            if (photos == null) {
                 return;
             }
-
-            L.M("Image processed and saved to disk.");
-
-            // Get the server for uploading photos
-            var uploadServer = api.Photo.GetMessagesUploadServer((long)groupId).UploadUrl;
-            L.M($"Upload URL: {uploadServer}");
-
-            // Upload the processed photo to the server
-            using var webClient = new WebClient();
-            var responseBytes = webClient.UploadFile(uploadServer, outputPath);
-            var responseString = Encoding.ASCII.GetString(responseBytes);
-
-            // Save the processed photo
-            var savedPhotos = api.Photo.SaveMessagesPhoto(responseString);
-            L.M("Photo uploaded to VK.");
 
             // Send the saved photo in a message
             api.Messages.Send(new MessagesSendParams {
                 RandomId = _random.Next(),
                 PeerId = message.PeerId.Value,
                 ReplyTo = message.Id,
-                Attachments = savedPhotos
+                Attachments = photos
             });
 
             L.M("Processed photo sent to user.");
@@ -114,6 +97,39 @@ public partial class MessageHandler
             L.E($"Exception in HandleImageCommand: {ex.Message}");
             L.E($"Stack Trace: {ex.StackTrace}");
         }
+    }
+
+    /// Jpeg only
+    public static async Task<ReadOnlyCollection<Photo>?> UploadImageToVk(VkApi api, Image image, ulong groupId) {
+        var sw = new Stopwatch();
+        sw.Start();
+        // Get the server for uploading photos
+        var uploadUrl = api.Photo.GetMessagesUploadServer((long)groupId).UploadUrl;
+        L.M($"Upload URL: {uploadUrl}");
+
+        // Upload the processed photo to VK
+        using var memoryStream = new MemoryStream();
+        await image.SaveAsync(memoryStream, new JpegEncoder());
+        memoryStream.Position = 0; // нахуя это
+        using var content = new MultipartFormDataContent();
+        var fileContent = new StreamContent(memoryStream);
+        fileContent.Headers.ContentType = MediaTypeHeaderValue.Parse("image/jpeg");
+        content.Add(fileContent, "photo", "image.jpeg");
+        using var httpClient = new HttpClient();
+            
+        var response = await httpClient.PostAsync(uploadUrl, content);
+        if (!response.IsSuccessStatusCode) {
+            L.E($"Error uploading image: {response.StatusCode} - {response.ReasonPhrase}");
+            var errorContent = await response.Content.ReadAsStringAsync();
+            L.E($"Response: {errorContent}");
+            return null;
+        }
+
+        var responseString = await response.Content.ReadAsStringAsync();
+        var photos = api.Photo.SaveMessagesPhoto(responseString);
+        sw.Stop();
+        L.M($"Photo uploaded to VK. It took {sw.ElapsedMilliseconds} ms.");
+        return photos;
     }
 
     private async void HandleMemeCommand(VkApi api, Message message, ulong groupId, string keywords)
@@ -142,18 +158,15 @@ public partial class MessageHandler
             try
             {
                 // Download meme image
-                using WebClient webClient = new WebClient();
-                byte[] imageBytes = webClient.DownloadData(memeUrl);
-                string outputPath = "./meme.jpg";
-                File.WriteAllBytes(outputPath, imageBytes);
+                using var httpClient = new HttpClient();
+                var response = await httpClient.GetAsync(memeUrl);
+                response.EnsureSuccessStatusCode();
+                var imageBytes = await response.Content.ReadAsByteArrayAsync();
+                using var memoryStream = new MemoryStream(imageBytes);
+                using var image = Image.Load<Rgba32>(memoryStream);
 
-                // Upload the meme image to the server
-                var responseBytes = webClient.UploadFile(uploadServer, outputPath);
-                var responseString = Encoding.ASCII.GetString(responseBytes);
-
-                // Save the uploaded meme image
-                var savedPhotos = api.Photo.SaveMessagesPhoto(responseString);
-                L.M("Meme uploaded to VK.");
+                var photos = await UploadImageToVk(api, image, groupId);
+                if (photos == null) return;
 
                 string text = await MessageProcessor.KeepUpConversation();
 
@@ -163,7 +176,7 @@ public partial class MessageHandler
                     RandomId = _random.Next(),
                     PeerId = message.PeerId.Value,
                     ReplyTo = message.Id,
-                    Attachments = savedPhotos,
+                    Attachments = photos,
                     Message = text
                 });
 
@@ -171,8 +184,8 @@ public partial class MessageHandler
             }
             catch (Exception ex)
             {
-                L.M($"Exception in HandleMemeCommand: {ex.Message}");
-                L.M($"Stack Trace: {ex.StackTrace}");
+                L.E($"Exception in HandleMemeCommand: {ex.Message}");
+                L.E($"Stack Trace: {ex.StackTrace}");
             }
         }
         else
@@ -445,48 +458,33 @@ public partial class MessageHandler
         });
     }
 
-    private async void HandleSearchCommand(VkApi api, Message message, ulong groupId, string location)
-    {
-        var output = await ServiceEndpoint.Map.Search(location);
+    private async void HandleSearchCommand(VkApi api, Message message, ulong groupId, string location) {
+        var (image, foundLocation) = await ServiceEndpoint.Map.Search(location);
 
-        var outputPath = output.Item1;
-
-        try
-        {
-            var uploadServer = api.Photo.GetMessagesUploadServer((long)groupId).UploadUrl;
-            L.M($"Upload URL: {uploadServer}");
-
-            using WebClient webClient = new WebClient();
-            var responseBytes = webClient.UploadFile(uploadServer, outputPath);
-            var responseString = Encoding.ASCII.GetString(responseBytes);
-
-            var savedPhotos = api.Photo.SaveMessagesPhoto(responseString);
-            L.M("location uploaded to VK.");
-
-            string text = await MessageProcessor.KeepUpConversation();
-
-            // Send the saved meme image in a message
-            api.Messages.Send(new MessagesSendParams
-            {
+        if (image == null) {
+            api.Messages.Send(new MessagesSendParams {
                 RandomId = _random.Next(),
                 PeerId = message.PeerId.Value,
                 ReplyTo = message.Id,
-                Attachments = savedPhotos,
-                Message = $"{location} {text} \n{output.Item2.Item1}\n{output.Item2.Item2}",
-                //Lat = long.Parse(output.Item2.lat),
-                //Longitude = long.Parse(output.Item2.lon)
+                Message = $"Не удалось узнать где {location}!"
             });
+            return;
         }
-        catch
-        {
-            api.Messages.Send(new MessagesSendParams
-            {
-                RandomId = _random.Next(),
-                PeerId = message.PeerId.Value,
-                ReplyTo = message.Id,
-                Message = $"{location} - Не удалось найти это место!"
-            });
-        }
+
+        var photos = await UploadImageToVk(api, image, groupId);
+        if (photos == null) return;
+
+        var text = await MessageProcessor.KeepUpConversation();
+
+        api.Messages.Send(new MessagesSendParams {
+            RandomId = _random.Next(),
+            PeerId = message.PeerId.Value,
+            ReplyTo = message.Id,
+            Attachments = photos,
+            Message = $"{location} {text} \n{foundLocation.Item1}\n{foundLocation.Item2}",
+            //Lat = long.Parse(output.Item2.lat),
+            //Longitude = long.Parse(output.Item2.lon)
+        });
     }
 
     private async void HandlePythonCommand(VkApi api, Message message, ulong groupId)
@@ -529,19 +527,20 @@ public partial class MessageHandler
         }
     }
     
-    private static Image<Rgba32>? FindImageInMessage(Message message) {
+    private static async Task<Image<Rgba32>?> FindImageInMessage(Message message) {
         var attachments = message.Attachments;
         if (attachments is { Count: > 0 } && attachments[0].Instance is Photo photo) {
             var largestPhoto = photo.Sizes?.OrderByDescending(s => s.Width * s.Height).FirstOrDefault();
             var photoUrl = largestPhoto?.Url?.AbsoluteUri;
             if (photoUrl == null) return null;
-            using var webClient = new WebClient();
-            var imageBytes = webClient.DownloadData(photoUrl);
+            using var httpClient = new HttpClient();
+            var response = await httpClient.GetAsync(photoUrl);
+            var imageBytes = await response.Content.ReadAsByteArrayAsync();
             using var ms = new MemoryStream(imageBytes);
             Image<Rgba32> originalImage;
 
             try {
-                originalImage = SixLabors.ImageSharp.Image.Load<Rgba32>(ms);
+                originalImage = Image.Load<Rgba32>(ms);
             } catch (Exception e) {
                 L.M($"Error loading image: {e.Message}");
                 return null;
@@ -550,11 +549,11 @@ public partial class MessageHandler
             return originalImage;
         }
 
-        return message.ReplyMessage != null ? FindImageInMessage(message.ReplyMessage) : null;
+        return message.ReplyMessage != null ? await FindImageInMessage(message.ReplyMessage) : null;
     }
 
-    public void HandleFuneralCommand(VkApi api, Message message, ulong groupId) {
-        var sourceImage = FindImageInMessage(message);
+    public async Task HandleFuneralCommand(VkApi api, Message message, ulong groupId) {
+        var sourceImage = await FindImageInMessage(message);
         if (sourceImage == null) {
             api.Messages.Send(new MessagesSendParams {
                 Message = "Некого хоронить!",
@@ -565,34 +564,15 @@ public partial class MessageHandler
         }
 
         var processedImage = ImageProcessor.Funeral(sourceImage);
-
-        using var webClient = new WebClient();
-        var outputPath = "./output.jpg";
-        try {
-            processedImage.Save(outputPath, new JpegEncoder());
-        } catch (Exception e) {
-            L.M($"Error saving image: {e.Message}");
-            return;
-        }
-
-        // Get the server for uploading photos
-        var uploadServer = api.Photo.GetMessagesUploadServer((long)groupId).UploadUrl;
-        L.M($"Upload URL: {uploadServer}");
-
-        // Upload the processed photo to the server
-        var responseBytes = webClient.UploadFile(uploadServer, outputPath);
-        var responseString = Encoding.ASCII.GetString(responseBytes);
-
-        // Save the processed photo
-        var savedPhotos = api.Photo.SaveMessagesPhoto(responseString);
-        L.M("Photo uploaded to VK.");
+        var photos = await UploadImageToVk(api, processedImage, groupId);
+        if (photos == null) return;
 
         api.Messages.Send(new MessagesSendParams {
             Message = "RIP🥀",
             RandomId = _random.Next(),
             PeerId = message.PeerId.Value,
             // ReplyTo = message.Id,
-            Attachments = savedPhotos
+            Attachments = photos
         });
 
         L.M("Processed photo sent to user.");

@@ -564,7 +564,8 @@ public partial class MessageHandler
             return;
         }
 
-        var processedImage = ImageProcessor.Funeral(sourceImage);
+        var processedImage = await ImageProcessor.Funeral(sourceImage);
+
         var photos = await UploadImageToVk(api, processedImage, groupId);
         if (photos == null) return;
 
@@ -646,7 +647,9 @@ public partial class MessageHandler
             var randomMember = members.Profiles.OrderBy(x => Guid.NewGuid()).First();
             long victimId = randomMember.Id;
 
-            string task = GenerateChaosTask(randomMember.FirstName);
+            var randomMember2 = members.Profiles.OrderBy(x => Guid.NewGuid()).First();
+
+            string task = GenerateChaosTask($"[id{randomMember2.Id}|{randomMember2.FirstName} {randomMember2.LastName}]");
 
             var buttons = new List<MessageKeyboardButton>
         {
@@ -702,6 +705,41 @@ public partial class MessageHandler
         $"написать выебан на жопе {name}",
         $"пойти нахуй",
         $"сделать KYS",
+        $"спонсировать побег в лес",
+        $"выебать {name} в жопу с разбега",
+        $"трахнуть {name} до потери пульса",
+        $"засунуть {name} голову в унитаз и смыть",
+        $"сломать {name} нос об стену",
+        $"выбить {name} зубы кувалдой",
+        $"раздавить {name} яйца прессом",
+        $"заставить {name} спорить с зеркалом до слез",
+        $"сказать {name}, что голоса в голове хотят пиццу",
+        $"заставить {name} танцевать с воображаемой бабкой",
+        $"написать на лбу {name} \"шиза внутри\" и отправить в магазин",
+        $"убедить {name}, что его кот — агент ФСБ",
+        $"заставить {name} шептать \"я нормальный\" в подушку всю ночь",
+        $"подарить {name} пустую коробку как \"лекарство от голосов\"",
+        $"сказать {name}, что его тень хочет его задушить",
+        $"заставить {name} искать Wi-Fi в лесу от деревьев",
+        $"убедить {name}, что он застрял в симуляции без выхода",
+        $"заставить {name} петь колыбельную своему отражению",
+        $"сказать {name}, что его мозг сбежал через уши",
+        $"заставить {name} обнимать мусорку и называть ее мамой",
+        $"убедить {name}, что дождь — это слезы его второго я",
+        $"заставить {name} искать свою душу в унитазе",
+        $"сказать {name}, что он умер, но не заметил",
+        $"заставить {name} писать письма своему выдуманному другу в стену",
+        $"убедить {name}, что он — картошка в прошлой жизни",
+        $"заставить {name} кричать \"где мой разум\" в пустую комнату",
+        $"сказать {name}, что его ноги — шпионы и следят за ним",
+        $"заставить {name} рисовать круги и шептать \"это мой дом\"",
+        $"убедить {name}, что лампа в комнате — его босс",
+        $"заставить {name} носить носок на руке как вторую личность",
+        $"сказать {name}, что его голоса в голове устраивают забастовку",
+        $"заставить {name} искать таблетки в миске с макаронами",
+        $"убедить {name}, что он видит мир в инверсии",
+        $"заставить {name} гладить воздух и называть его псом"
+
     };
         return actions[random.Next(actions.Length)];
     }

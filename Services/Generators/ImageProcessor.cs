@@ -183,7 +183,7 @@ public class ImageProcessor
 
         return newImage;
     }
-    public static Image<Rgba32> Funeral(Image<Rgba32> image) {
+    public static async Task<Image<Rgba32>> Funeral(Image<Rgba32> image) {
         const int maxWidth = 256;
         const int maxHeight = 256;
 
@@ -214,8 +214,12 @@ public class ImageProcessor
                     .AddTicks((long)(random.NextDouble()
                                      * (DateTime.Parse("01.01.2006") - DateTime.Parse("01.01.1930")).Ticks))
                     .ToString("d") + " - " + DateTime.Today.ToString("d"), font, Color.Black, new PointF(465, 500)));
+
+        var message = await MessageProcessor.KeepUpConversation();
+
+
         grave.Mutate(i =>
-            i.DrawText("REST IN PENIS", SystemFonts.CreateFont("Georgia", 40, FontStyle.Italic), Color.Black,
+            i.DrawText(message, SystemFonts.CreateFont("Georgia", 40, FontStyle.Italic), Color.Black,
                 new PointF(480, 560)));
 
         return grave;

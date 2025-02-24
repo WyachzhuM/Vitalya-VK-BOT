@@ -16,14 +16,14 @@ public class Map
 
     public Map(Authentication auth) => _yandexApikey = auth.YandexApiKey;
 
-    public async Task<(string, (string lat, string lon))> Search(string location)
+    public async Task<(Image?, (string lat, string lon))> Search(string location)
     {
         var coordinates = await GetCoordinatesAsync(location);
 
         if (coordinates == null)
         {
             Console.WriteLine("Location not found.");
-            return (string.Empty, (string.Empty, string.Empty));
+            return (null, (string.Empty, string.Empty));
         }
 
         string mapUrl = GenerateMapUrl(coordinates.Value.lat, coordinates.Value.lon, 12, 650, 450);
@@ -32,14 +32,12 @@ public class Map
         if (mapImage == null)
         {
             Console.WriteLine("Failed to retrieve map image.");
-            return (string.Empty, (string.Empty, string.Empty));
+            return (null, (string.Empty, string.Empty));
         }
 
         var markedImage = MarkLocationOnMap(mapImage, coordinates.Value.lat, coordinates.Value.lon);
-        string path = "./map_with_marker.png";
-        await markedImage.SaveAsPngAsync(path);
 
-        return (path, ($"lat: {coordinates.Value.lat}", $"lon: {coordinates.Value.lon}"));
+        return (markedImage, ($"lat: {coordinates.Value.lat}", $"lon: {coordinates.Value.lon}"));
     }
 
     private static async Task<(double lat, double lon)?> GetCoordinatesAsync(string address)

@@ -1,20 +1,21 @@
-﻿using Newtonsoft.Json;
+﻿using System.Collections.ObjectModel;
+using Newtonsoft.Json;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Formats.Jpeg;
 using SixLabors.ImageSharp.PixelFormats;
-using System.Collections.Generic;
 using System.Net;
 using System.Text;
 using vkbot_vitalya.Config;
 using vkbot_vitalya.Services;
 using VkNet;
 using VkNet.Model;
-using VkNet.Enums.Filters;
-using System;
-using System.Reflection.Emit;
 using vkbot_vitalya.Services.Generators.TextGeneration;
 using System.Diagnostics;
+using System.Net.Http.Headers;
 using System.Text.RegularExpressions;
+using vkbot_vitalya.Core;
+using vkbot_vitalya.Services.Generators;
+using Image = SixLabors.ImageSharp.Image;
 
 namespace vkbot_vitalya;
 
@@ -25,178 +26,110 @@ public partial class MessageHandler
 {
     private Dictionary<long, int> chaosScores = new Dictionary<long, int>(); // Счёт хаоса
 
-    private async Task HandlePhotoCommand(VkApi api, Message message, ulong groupId, string command, string actualCommand, Conf config)
-    {
-        // Get attachments from message
-        var attachments = message.Attachments;
-
-        if (attachments != null && attachments.Count > 0 && attachments[0].Instance is Photo photo)
-        {
-            // Get the URL of the largest photo
-            var largestPhoto = photo.Sizes?.OrderByDescending(s => s.Width * s.Height).FirstOrDefault();
-            if (largestPhoto != null)
-            {
-                var photoUrl = largestPhoto.Url?.AbsoluteUri;
-                if (photoUrl != null)
-                {
-                    Console.WriteLine($"Photo URL: {photoUrl}");
-                    File.AppendAllText("./log.txt", $"Photo URL: {photoUrl}\n");
-
-                    // Determine the command and call the appropriate image processing function
-                    switch (actualCommand)
-                    {
-                        case "break":
-                            Console.WriteLine("Command 'Break' recognized.");
-                            File.AppendAllText("./log.txt", "Command 'Break' recognized.\n");
-                            HandleImageCommand(api, message, photoUrl, Processor.BreakImage, groupId);
-                            break;
-                        case "liquidate":
-                            Console.WriteLine("Command 'Liquidate' recognized.");
-                            File.AppendAllText("./log.txt", "Command 'Liquidate' recognized.\n");
-                            HandleImageCommand(api, message, photoUrl, Processor.LiquidateImage, groupId);
-                            break;
-                        case "compress":
-                            Console.WriteLine("Command 'Compress' recognized.");
-                            File.AppendAllText("./log.txt", "Command 'Compress' recognized.\n");
-                            HandleImageCommand(api, message, photoUrl, Processor.CompressImage, groupId);
-                            break;
-                        case "add_text":
-                            Console.WriteLine("Command 'AddText' recognized.");
-                            File.AppendAllText("./log.txt", "Command 'AddText' recognized.\n");
-                            HandleImageCommand(api, message, photoUrl, Processor.AddTextImageCommand, groupId);
-                            break;
-                        default:
-                            Console.WriteLine("No matching command found. Generating random message.");
-                            File.AppendAllText("./log.txt", "No matching command found. Generating random message.\n");
-                            var responseMessage = await MessageProcessor.KeepUpConversation();
-                            SendResponse(api, message.PeerId.Value, responseMessage);
-                            break;
-                    }
-                }
-                else
-                {
-                    Console.WriteLine("Photo URL is null.");
-                    File.AppendAllText("./log.txt", "Photo URL is null.\n");
-                }
-            }
-            else
-            {
-                Console.WriteLine("No largest photo found.");
-                File.AppendAllText("./log.txt", "No largest photo found.\n");
-            }
+    private async Task HandlePhotoCommand(VkApi api, Message message, ulong groupId, string command, Conf config) {
+        var image = await FindImageInMessage(message);
+        if (image == null) {
+            L.W("Tried to handle photo command, but photo not found.");
+            return;
         }
-        else
-        {
-            Console.WriteLine("No photo attachments found or attachments are not photos.");
-            File.AppendAllText("./log.txt", "No photo attachments found or attachments are not photos.\n");
 
-            // Handle cases where message doesn't contain a photo but may still need to respond
-            if (command.Contains(config.Commands["generate_sentences"].First(), StringComparison.OrdinalIgnoreCase))
-            {
-                Console.WriteLine("Command 'Generate Sentences' recognized.");
-                File.AppendAllText("./log.txt", "Command 'Generate Sentences' recognized.\n");
+        switch (command) {
+            case "break":
+                L.M("Command 'Break' recognized.");
+                HandleImageCommand(api, message, image, Processor.BreakImage, groupId);
+                break;
+            case "liquidate":
+                L.M("Command 'Liquidate' recognized.");
+                HandleImageCommand(api, message, image, Processor.LiquidateImage, groupId);
+                break;
+            case "compress":
+                L.M("Command 'Compress' recognized.");
+                HandleImageCommand(api, message, image, Processor.CompressImage, groupId);
+                break;
+            case "add_text":
+                L.M("Command 'AddText' recognized.");
+                HandleImageCommand(api, message, image, Processor.AddTextImageCommand, groupId);
+                break;
+            case "funeral":
+                L.M("Command 'Funeral' recognized.");
+                HandleFuneralCommand(api, message, groupId);
+                return;
+            default:
+                L.W("Tried to handle photo command, but command doesn't need a photo. Generating random message.");
                 var responseMessage = await MessageProcessor.KeepUpConversation();
                 SendResponse(api, message.PeerId.Value, responseMessage);
-            }
-            else if (command.Contains(config.Commands["echo"].First(), StringComparison.OrdinalIgnoreCase))
-            {
-                Console.WriteLine("Command 'Echo' recognized.");
-                File.AppendAllText("./log.txt", "Command 'Echo' recognized.\n");
-                var echoText = message.Text.Substring(config.Commands["echo"].First().Length).Trim();
-                SendResponse(api, message.PeerId.Value, echoText);
-            }
+                break;
         }
     }
 
-    private void HandleImageCommand(VkApi api, Message message, string imageUrl, Func<Image<Rgba32>, Image<Rgba32>> imageProcessor, ulong groupId)
-    {
-        Console.WriteLine("Handling image command...");
-        File.AppendAllText("./log.txt", "Handling image command...\n");
+    private async void HandleImageCommand(VkApi api, Message message, Image<Rgba32> originalImage,
+        Func<Image<Rgba32>, Image<Rgba32>> imageProcessor, ulong groupId) {
+        L.M("Handling image command...");
 
-        try
-        {
-            using (WebClient webClient = new WebClient())
-            {
-                byte[] imageBytes = webClient.DownloadData(imageUrl);
-                using (MemoryStream ms = new MemoryStream(imageBytes))
-                {
-                    Image<Rgba32> originalImage;
-
-                    try
-                    {
-                        originalImage = SixLabors.ImageSharp.Image.Load<Rgba32>(ms);
-                    }
-                    catch (Exception e)
-                    {
-                        Console.WriteLine($"Error loading image: {e.Message}");
-                        File.AppendAllText("./log.txt", $"Error loading image: {e.Message}\n");
-                        return;
-                    }
-
-                    Image<Rgba32> processedImage;
-
-                    try
-                    {
-                        processedImage = imageProcessor(originalImage);
-                    }
-                    catch (Exception e)
-                    {
-                        Console.WriteLine($"Error processing image: {e.Message}");
-                        File.AppendAllText("./log.txt", $"Error processing image: {e.Message}\n");
-                        return;
-                    }
-
-                    string outputPath = "./output.jpg";
-
-                    try
-                    {
-                        processedImage.Save(outputPath, new JpegEncoder());
-                    }
-                    catch (Exception e)
-                    {
-                        Console.WriteLine($"Error saving image: {e.Message}");
-                        File.AppendAllText("./log.txt", $"Error saving image: {e.Message}\n");
-                        return;
-                    }
-
-                    Console.WriteLine("Image processed and saved to disk.");
-                    File.AppendAllText("./log.txt", "Image processed and saved to disk.\n");
-
-                    // Get the server for uploading photos
-                    var uploadServer = api.Photo.GetMessagesUploadServer((long)groupId).UploadUrl;
-                    Console.WriteLine($"Upload URL: {uploadServer}");
-                    File.AppendAllText("./log.txt", $"Upload URL: {uploadServer}\n");
-
-                    // Upload the processed photo to the server
-                    var responseBytes = webClient.UploadFile(uploadServer, outputPath);
-                    var responseString = Encoding.ASCII.GetString(responseBytes);
-
-                    // Save the processed photo
-                    var savedPhotos = api.Photo.SaveMessagesPhoto(responseString);
-                    Console.WriteLine("Photo uploaded to VK.");
-                    File.AppendAllText("./log.txt", "Photo uploaded to VK.\n");
-
-                    // Send the saved photo in a message
-                    api.Messages.Send(new MessagesSendParams
-                    {
-                        RandomId = _random.Next(),
-                        PeerId = message.PeerId.Value,
-                        ReplyTo = message.Id,
-                        Attachments = savedPhotos
-                    });
-
-                    Console.WriteLine("Processed photo sent to user.");
-                    File.AppendAllText("./log.txt", "Processed photo sent to user.\n");
-                }
+        try {
+            Image<Rgba32> processedImage;
+            var sw = new Stopwatch();
+            try {
+                sw.Start();
+                processedImage = imageProcessor(originalImage);
+                sw.Stop();
+                L.M($"Image processing took {sw.ElapsedMilliseconds} ms");
+            } catch (Exception e) {
+                L.E($"Error processing image: {e.Message}");
+                return;
             }
+
+            var photos = await UploadImageToVk(api, processedImage, groupId);
+            if (photos == null) {
+                return;
+            }
+
+            // Send the saved photo in a message
+            api.Messages.Send(new MessagesSendParams {
+                RandomId = _random.Next(),
+                PeerId = message.PeerId.Value,
+                ReplyTo = message.Id,
+                Attachments = photos
+            });
+
+            L.M("Processed photo sent to user.");
+        } catch (Exception ex) {
+            L.E($"Exception in HandleImageCommand: {ex.Message}");
+            L.E($"Stack Trace: {ex.StackTrace}");
         }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Exception in HandleImageCommand: {ex.Message}");
-            File.AppendAllText("./log.txt", $"Exception in HandleImageCommand: {ex.Message}\n");
-            Console.WriteLine($"Stack Trace: {ex.StackTrace}");
-            File.AppendAllText("./log.txt", $"Stack Trace: {ex.StackTrace}\n");
+    }
+
+    /// Jpeg only
+    public static async Task<ReadOnlyCollection<Photo>?> UploadImageToVk(VkApi api, Image image, ulong groupId) {
+        var sw = new Stopwatch();
+        sw.Start();
+        // Get the server for uploading photos
+        var uploadUrl = api.Photo.GetMessagesUploadServer((long)groupId).UploadUrl;
+        L.M($"Upload URL: {uploadUrl}");
+
+        // Upload the processed photo to VK
+        using var memoryStream = new MemoryStream();
+        await image.SaveAsync(memoryStream, new JpegEncoder());
+        memoryStream.Position = 0; // нахуя это
+        using var content = new MultipartFormDataContent();
+        var fileContent = new StreamContent(memoryStream);
+        fileContent.Headers.ContentType = MediaTypeHeaderValue.Parse("image/jpeg");
+        content.Add(fileContent, "photo", "image.jpeg");
+        using var httpClient = new HttpClient();
+            
+        var response = await httpClient.PostAsync(uploadUrl, content);
+        if (!response.IsSuccessStatusCode) {
+            L.E($"Error uploading image: {response.StatusCode} - {response.ReasonPhrase}");
+            var errorContent = await response.Content.ReadAsStringAsync();
+            L.E($"Response: {errorContent}");
+            return null;
         }
+
+        var responseString = await response.Content.ReadAsStringAsync();
+        var photos = api.Photo.SaveMessagesPhoto(responseString);
+        sw.Stop();
+        L.M($"Photo uploaded to VK. It took {sw.ElapsedMilliseconds} ms.");
+        return photos;
     }
 
     private async void HandleMemeCommand(VkApi api, Message message, ulong groupId, string keywords)
@@ -216,30 +149,24 @@ public partial class MessageHandler
         if (meme != null)
         {
             string memeUrl = meme.Url;
-            Console.WriteLine($"Found meme URL: {memeUrl}");
-            File.AppendAllText("./log.txt", $"Found meme URL: {memeUrl}\n");
+            L.M($"Found meme URL: {memeUrl}");
 
             // Get the server for uploading photos
             var uploadServer = api.Photo.GetMessagesUploadServer((long)groupId).UploadUrl;
-            Console.WriteLine($"Upload URL: {uploadServer}");
-            File.AppendAllText("./log.txt", $"Upload URL: {uploadServer}\n");
+            L.M($"Upload URL: {uploadServer}");
 
             try
             {
                 // Download meme image
-                using WebClient webClient = new WebClient();
-                byte[] imageBytes = webClient.DownloadData(memeUrl);
-                string outputPath = "./meme.jpg";
-                File.WriteAllBytes(outputPath, imageBytes);
+                using var httpClient = new HttpClient();
+                var response = await httpClient.GetAsync(memeUrl);
+                response.EnsureSuccessStatusCode();
+                var imageBytes = await response.Content.ReadAsByteArrayAsync();
+                using var memoryStream = new MemoryStream(imageBytes);
+                using var image = Image.Load<Rgba32>(memoryStream);
 
-                // Upload the meme image to the server
-                var responseBytes = webClient.UploadFile(uploadServer, outputPath);
-                var responseString = Encoding.ASCII.GetString(responseBytes);
-
-                // Save the uploaded meme image
-                var savedPhotos = api.Photo.SaveMessagesPhoto(responseString);
-                Console.WriteLine("Meme uploaded to VK.");
-                File.AppendAllText("./log.txt", "Meme uploaded to VK.\n");
+                var photos = await UploadImageToVk(api, image, groupId);
+                if (photos == null) return;
 
                 string text = await MessageProcessor.KeepUpConversation();
 
@@ -249,25 +176,21 @@ public partial class MessageHandler
                     RandomId = _random.Next(),
                     PeerId = message.PeerId.Value,
                     ReplyTo = message.Id,
-                    Attachments = savedPhotos,
+                    Attachments = photos,
                     Message = text
                 });
 
-                Console.WriteLine("Meme sent to user.");
-                File.AppendAllText("./log.txt", "Meme sent to user.\n");
+                L.M("Meme sent to user.");
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Exception in HandleMemeCommand: {ex.Message}");
-                File.AppendAllText("./log.txt", $"Exception in HandleMemeCommand: {ex.Message}\n");
-                Console.WriteLine($"Stack Trace: {ex.StackTrace}");
-                File.AppendAllText("./log.txt", $"Stack Trace: {ex.StackTrace}\n");
+                L.E($"Exception in HandleMemeCommand: {ex.Message}");
+                L.E($"Stack Trace: {ex.StackTrace}");
             }
         }
         else
         {
-            Console.WriteLine("No meme found.");
-            File.AppendAllText("./log.txt", "No meme found.\n");
+            L.M("No meme found.");
             SendResponse(api, message.PeerId.Value, "Извините, не удалось найти мемы по заданным ключевым словам.");
         }
     }
@@ -310,8 +233,7 @@ public partial class MessageHandler
         }
 
         // Если теги не указаны, будут использоваться отрицательные теги по умолчанию
-        Console.WriteLine($"Requesting Danbooru with tags: {tags}");
-        File.AppendAllText("./log.txt", $"Requesting Danbooru with tags: {tags}\n");
+        L.M($"Requesting Danbooru with tags: {tags}");
 
         Console.WriteLine(tags);
 
@@ -320,12 +242,10 @@ public partial class MessageHandler
         if (randomPost != null)
         {
             string imageUrl = randomPost.FileUrl;
-            Console.WriteLine($"Found image URL: {imageUrl}");
-            File.AppendAllText("./log.txt", $"Found image URL: {imageUrl}\n");
+            L.M($"Found image URL: {imageUrl}");
 
             var uploadServer = api.Photo.GetMessagesUploadServer((long)groupId).UploadUrl;
-            Console.WriteLine($"Upload URL: {uploadServer}");
-            File.AppendAllText("./log.txt", $"Upload URL: {uploadServer}\n");
+            L.M($"Upload URL: {uploadServer}");
 
             try
             {
@@ -348,8 +268,7 @@ public partial class MessageHandler
                 uploadResponse.EnsureSuccessStatusCode();
                 string responseString = await uploadResponse.Content.ReadAsStringAsync();
                 var savedPhotos = api.Photo.SaveMessagesPhoto(responseString);
-                Console.WriteLine("Anime image uploaded to VK.");
-                File.AppendAllText("./log.txt", "Anime image uploaded to VK.\n");
+                L.M("Anime image uploaded to VK.");
 
                 List<string> variableLabel = new List<string>()
                 {
@@ -405,21 +324,17 @@ public partial class MessageHandler
                     Keyboard = keyboard
                 });
 
-                Console.WriteLine("Anime image sent to user.");
-                File.AppendAllText("./log.txt", "Anime image sent to user.\n");
+                L.M("Anime image sent to user.");
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Exception in HandleAnimeCommand: {ex.Message}");
-                File.AppendAllText("./log.txt", $"Exception in HandleAnimeCommand: {ex.Message}\n");
-                Console.WriteLine($"Stack Trace: {ex.StackTrace}");
-                File.AppendAllText("./log.txt", $"Stack Trace: {ex.StackTrace}\n");
+                L.M($"Exception in HandleAnimeCommand: {ex.Message}");
+                L.M($"Stack Trace: {ex.StackTrace}");
             }
         }
         else
         {
-            Console.WriteLine("No anime image found.");
-            File.AppendAllText("./log.txt", "No anime image found.\n");
+            L.M("No anime image found.");
             SendResponse(api, message.PeerId.Value, "Извините, не удалось найти изображение аниме.");
         }
     }
@@ -448,8 +363,7 @@ public partial class MessageHandler
         }
 
         // Если теги не указаны, будут использоваться отрицательные теги по умолчанию
-        Console.WriteLine($"Requesting Danbooru with tags: {tags}");
-        File.AppendAllText("./log.txt", $"Requesting Danbooru with tags: {tags}\n");
+        L.M($"Requesting Danbooru with tags: {tags}");
 
         Services.Post? randomPost = await ServiceEndpoint.DanbooruApi.RandomImageAsync(onForbriddenTag, tags);
 
@@ -459,12 +373,10 @@ public partial class MessageHandler
         if (randomPost != null)
         {
             string imageUrl = randomPost.FileUrl;
-            Console.WriteLine($"Found image URL: {imageUrl}");
-            File.AppendAllText("./log.txt", $"Found image URL: {imageUrl}\n");
+            L.M($"Found image URL: {imageUrl}");
 
             var uploadServer = api.Photo.GetMessagesUploadServer((long)groupId).UploadUrl;
-            Console.WriteLine($"Upload URL: {uploadServer}");
-            File.AppendAllText("./log.txt", $"Upload URL: {uploadServer}\n");
+            L.M($"Upload URL: {uploadServer}");
 
             try
             {
@@ -487,8 +399,7 @@ public partial class MessageHandler
                 uploadResponse.EnsureSuccessStatusCode();
                 string responseString = await uploadResponse.Content.ReadAsStringAsync();
                 var savedPhotos = api.Photo.SaveMessagesPhoto(responseString);
-                Console.WriteLine("Anime image uploaded to VK.");
-                File.AppendAllText("./log.txt", "Anime image uploaded to VK.\n");
+                L.M("Anime image uploaded to VK.");
 
                 var b = new MessageKeyboardButton
                 {
@@ -519,21 +430,17 @@ public partial class MessageHandler
                     Keyboard = keyboard
                 });
 
-                Console.WriteLine("Anime image sent to user.");
-                File.AppendAllText("./log.txt", "Anime image sent to user.\n");
+                L.M("Anime image sent to user.");
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Exception in HandleAnimeCommand: {ex.Message}");
-                File.AppendAllText("./log.txt", $"Exception in HandleAnimeCommand: {ex.Message}\n");
-                Console.WriteLine($"Stack Trace: {ex.StackTrace}");
-                File.AppendAllText("./log.txt", $"Stack Trace: {ex.StackTrace}\n");
+                L.M($"Exception in HandleAnimeCommand: {ex.Message}");
+                L.M($"Stack Trace: {ex.StackTrace}");
             }
         }
         else
         {
-            Console.WriteLine("No anime image found.");
-            File.AppendAllText("./log.txt", "No anime image found.\n");
+            L.M("No anime image found.");
             SendResponse(api, message.PeerId.Value, "Извините, не удалось найти изображение аниме.");
         }
     }
@@ -551,50 +458,33 @@ public partial class MessageHandler
         });
     }
 
-    private async void HandleSearchCommand(VkApi api, Message message, ulong groupId, string location)
-    {
-        var output = await ServiceEndpoint.Map.Search(location);
+    private async void HandleSearchCommand(VkApi api, Message message, ulong groupId, string location) {
+        var (image, foundLocation) = await ServiceEndpoint.Map.Search(location);
 
-        var outputPath = output.Item1;
-
-        try
-        {
-            var uploadServer = api.Photo.GetMessagesUploadServer((long)groupId).UploadUrl;
-            Console.WriteLine($"Upload URL: {uploadServer}");
-            File.AppendAllText("./log.txt", $"Upload URL: {uploadServer}\n");
-
-            using WebClient webClient = new WebClient();
-            var responseBytes = webClient.UploadFile(uploadServer, outputPath);
-            var responseString = Encoding.ASCII.GetString(responseBytes);
-
-            var savedPhotos = api.Photo.SaveMessagesPhoto(responseString);
-            Console.WriteLine("location uploaded to VK.");
-            File.AppendAllText("./log.txt", "Location photo uploaded to VK.\n");
-
-            string text = await MessageProcessor.KeepUpConversation();
-
-            // Send the saved meme image in a message
-            api.Messages.Send(new MessagesSendParams
-            {
+        if (image == null) {
+            api.Messages.Send(new MessagesSendParams {
                 RandomId = _random.Next(),
                 PeerId = message.PeerId.Value,
                 ReplyTo = message.Id,
-                Attachments = savedPhotos,
-                Message = $"{location} {text} \n{output.Item2.Item1}\n{output.Item2.Item2}",
-                //Lat = long.Parse(output.Item2.lat),
-                //Longitude = long.Parse(output.Item2.lon)
+                Message = $"Не удалось узнать где {location}!"
             });
+            return;
         }
-        catch
-        {
-            api.Messages.Send(new MessagesSendParams
-            {
-                RandomId = _random.Next(),
-                PeerId = message.PeerId.Value,
-                ReplyTo = message.Id,
-                Message = $"{location} - Не удалось найти это место!"
-            });
-        }
+
+        var photos = await UploadImageToVk(api, image, groupId);
+        if (photos == null) return;
+
+        var text = await MessageProcessor.KeepUpConversation();
+
+        api.Messages.Send(new MessagesSendParams {
+            RandomId = _random.Next(),
+            PeerId = message.PeerId.Value,
+            ReplyTo = message.Id,
+            Attachments = photos,
+            Message = $"{location} {text} \n{foundLocation.Item1}\n{foundLocation.Item2}",
+            //Lat = long.Parse(output.Item2.lat),
+            //Longitude = long.Parse(output.Item2.lon)
+        });
     }
 
     private async void HandlePythonCommand(VkApi api, Message message, ulong groupId)
@@ -609,8 +499,7 @@ public partial class MessageHandler
         }
 
         string pythonCode = commandParts[2].Trim();
-        Console.WriteLine($"Received Python code: {pythonCode}");
-        File.AppendAllText("./log.txt", $"Received Python code: {pythonCode}\n");
+        L.M($"Received Python code: {pythonCode}");
 
         string pythonCodeLower = pythonCode.ToLower();
         if (Regex.IsMatch(pythonCodeLower, @"(os|sys|subprocess|import|exec|eval|\bimp\b|\bort\b)"))
@@ -629,15 +518,64 @@ public partial class MessageHandler
         {
             string output = await ExecutePythonCode(pythonCode);
             SendResponse(api, message.PeerId.Value, output.Length > 0 ? output : "Код выполнен, но вывода нет.");
-            Console.WriteLine("Python code executed successfully.");
-            File.AppendAllText("./log.txt", "Python code executed successfully.\n");
+            L.M("Python code executed successfully.");
         }
         catch (Exception ex)
         {
             SendResponse(api, message.PeerId.Value, "Ошибка при выполнении кода: " + ex.Message);
-            Console.WriteLine($"Error executing Python code: {ex.Message}");
-            File.AppendAllText("./log.txt", $"Error executing Python code: {ex.Message}\n");
+            L.M($"Error executing Python code: {ex.Message}");
         }
+    }
+    
+    private static async Task<Image<Rgba32>?> FindImageInMessage(Message message) {
+        var attachments = message.Attachments;
+        if (attachments is { Count: > 0 } && attachments[0].Instance is Photo photo) {
+            var largestPhoto = photo.Sizes?.OrderByDescending(s => s.Width * s.Height).FirstOrDefault();
+            var photoUrl = largestPhoto?.Url?.AbsoluteUri;
+            if (photoUrl == null) return null;
+            using var httpClient = new HttpClient();
+            var response = await httpClient.GetAsync(photoUrl);
+            var imageBytes = await response.Content.ReadAsByteArrayAsync();
+            using var ms = new MemoryStream(imageBytes);
+            Image<Rgba32> originalImage;
+
+            try {
+                originalImage = Image.Load<Rgba32>(ms);
+            } catch (Exception e) {
+                L.M($"Error loading image: {e.Message}");
+                return null;
+            }
+
+            return originalImage;
+        }
+
+        return message.ReplyMessage != null ? await FindImageInMessage(message.ReplyMessage) : null;
+    }
+
+    public async Task HandleFuneralCommand(VkApi api, Message message, ulong groupId) {
+        var sourceImage = await FindImageInMessage(message);
+        if (sourceImage == null) {
+            api.Messages.Send(new MessagesSendParams {
+                Message = "Некого хоронить!",
+                RandomId = _random.Next(),
+                PeerId = message.PeerId.Value
+            });
+            return;
+        }
+
+        var processedImage = ImageProcessor.Funeral(sourceImage);
+        var photos = await UploadImageToVk(api, processedImage, groupId);
+        if (photos == null) return;
+
+        api.Messages.Send(new MessagesSendParams {
+            Message = "RIP🥀",
+            RandomId = _random.Next(),
+            PeerId = message.PeerId.Value,
+            // ReplyTo = message.Id,
+            Attachments = photos
+        });
+
+        L.M("Processed photo sent to user.");
     }
 
     private async Task<string> ExecutePythonCode(string code)
@@ -699,8 +637,7 @@ public partial class MessageHandler
             return;
         }
 
-        Console.WriteLine("Starting chaos...");
-        File.AppendAllText("./log.txt", "Starting chaos...\n");
+        L.M("Starting chaos...");
 
         try
         {
@@ -746,14 +683,12 @@ public partial class MessageHandler
                 Keyboard = keyboard
             });
 
-            Console.WriteLine($"Chaos task assigned to {randomMember.FirstName}: {task}");
-            File.AppendAllText("./log.txt", $"Chaos task assigned to {randomMember.FirstName}: {task}\n");
+            L.M($"Chaos task assigned to {randomMember.FirstName}: {task}");
         }
         catch (Exception ex)
         {
             SendResponse(api, message.PeerId.Value, "Ошибка хаоса: " + ex.Message);
-            Console.WriteLine($"Error in chaos: {ex.Message}");
-            File.AppendAllText("./log.txt", $"Error in chaos: {ex.Message}\n");
+            L.M($"Error in chaos: {ex.Message}");
         }
     }
 

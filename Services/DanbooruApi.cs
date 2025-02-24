@@ -6,6 +6,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using vkbot_vitalya.Config;
+using vkbot_vitalya.Core;
 using vkbot_vitalya.Core.Requesters;
 using VkNet.Model;
 
@@ -66,13 +67,11 @@ public class DanbooruApi
 
                 string url = $"https://danbooru.donmai.us/posts.json?tags={joinedTags}&limit={count}&page={page}";
 
-                Console.WriteLine($"Requesting URL: {url}");
-                File.AppendAllText("./log.txt", $"Requesting URL: {url}\n");
+                L.M($"Requesting URL: {url}");
 
                 HttpResponseMessage response = await Client.GetAsync(url);
 
-                Console.WriteLine($"Response Status Code: {response.StatusCode}");
-                File.AppendAllText("./log.txt", $"Response Status Code: {response.StatusCode}\n");
+                L.M($"Response Status Code: {response.StatusCode}");
 
                 if (response.IsSuccessStatusCode)
                 {
@@ -81,8 +80,7 @@ public class DanbooruApi
 
                     if (posts != null && posts.Count > 0)
                     {
-                        Console.WriteLine($"Posts found: {posts.Count}");
-                        File.AppendAllText("./log.txt", $"Posts found: {posts.Count}\n");
+                        L.M($"Posts found: {posts.Count}");
 
                         int randomIndex = rand.Next(posts.Count);
                         var post = posts[randomIndex];
@@ -108,21 +106,18 @@ public class DanbooruApi
                         }
                         else
                         {
-                            Console.WriteLine($"Unsupported file type: {post.FileUrl}");
-                            File.AppendAllText("./log.txt", $"Unsupported file type: {post.FileUrl}\n");
+                            L.M($"Unsupported file type: {post.FileUrl}");
                         }
                     }
                     else
                     {
-                        Console.WriteLine("No posts found.");
-                        File.AppendAllText("./log.txt", "No posts found.\n");
+                        L.M("No posts found.");
                     }
                 }
                 else
                 {
                     string errorContent = await response.Content.ReadAsStringAsync();
-                    Console.WriteLine($"Error Content: {errorContent}");
-                    File.AppendAllText("./log.txt", $"Error Content: {errorContent}\n");
+                    L.M($"Error Content: {errorContent}");
                 }
             }
         }

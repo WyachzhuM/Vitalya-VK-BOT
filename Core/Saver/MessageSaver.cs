@@ -31,7 +31,7 @@ public class MessageSaver
                 }
                 else
                 {
-                    Logger.M($"{nameof(Program)}: saved == NULL");
+                    L.M($"{nameof(Program)}: saved == NULL");
                     return;
                 }
             }

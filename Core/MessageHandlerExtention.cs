@@ -305,7 +305,7 @@ public partial class MessageHandler
                     }
                 };
 
-                List<MessageKeyboardButton> buttonsRow1 = new List<MessageKeyboardButton> { b };
+                List<MessageKeyboardButton> buttonsRow1 = [b];
 
                 var values = new List<List<MessageKeyboardButton>> { buttonsRow1 };
 
@@ -528,6 +528,7 @@ public partial class MessageHandler
     }
     
     private static async Task<Image<Rgba32>?> FindImageInMessage(Message message) {
+
         var attachments = message.Attachments;
         if (attachments is { Count: > 0 } && attachments[0].Instance is Photo photo) {
             var largestPhoto = photo.Sizes?.OrderByDescending(s => s.Width * s.Height).FirstOrDefault();

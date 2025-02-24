@@ -82,8 +82,6 @@ public partial class MessageHandler
 
         userMessage.onCommand = async (Cmd cmd) =>
         {
-
-
             switch (cmd.CommandName)
             {
                 case "meme":

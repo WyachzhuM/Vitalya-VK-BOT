@@ -46,7 +46,7 @@ public class DanbooruApi
     private string ApiKey { get; set; }
     private string Login { get; set; }
 
-    public async Task<Post?> RandomImageAsync(Action onForbTag, string tags = "", string excludeTags = "yaoi,2boys,multiple_boys,male_penetrated,bara, male_focus, muscular_male, cum_on_male, facial_hair", int count = 1)
+    public async Task<string?> RandomImageAsync(Action onForbTag, string tags = "", string excludeTags = "yaoi,2boys,multiple_boys,male_penetrated,bara, male_focus, muscular_male, cum_on_male, facial_hair", int count = 1)
     {
         try
         {
@@ -102,7 +102,7 @@ public class DanbooruApi
                         // Добавляем проверку типа файла
                         if (post.FileUrl.EndsWith(".jpg") || post.FileUrl.EndsWith(".jpeg") || post.FileUrl.EndsWith(".png") || post.FileUrl.EndsWith(".gif"))
                         {
-                            return post;
+                            return post.FileUrl;
                         }
                         else
                         {

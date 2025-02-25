@@ -3,7 +3,6 @@ using Newtonsoft.Json;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Formats.Jpeg;
 using SixLabors.ImageSharp.PixelFormats;
-using System.Net;
 using System.Text;
 using vkbot_vitalya.Config;
 using vkbot_vitalya.Services;
@@ -79,8 +78,8 @@ public partial class MessageHandler
                 return;
             }
 
-            var photos = await UploadImageToVk(api, processedImage, groupId);
-            if (photos == null) {
+            var photo = await UploadImageToVk(api, processedImage, groupId);
+            if (photo == null) {
                 return;
             }
 
@@ -89,7 +88,7 @@ public partial class MessageHandler
                 RandomId = _random.Next(),
                 PeerId = message.PeerId.Value,
                 ReplyTo = message.Id,
-                Attachments = photos
+                Attachments = photo
             });
 
             L.M("Processed photo sent to user.");
@@ -99,7 +98,7 @@ public partial class MessageHandler
         }
     }
 
-    /// Jpeg only
+    /// Upload new image to VK
     public static async Task<ReadOnlyCollection<Photo>?> UploadImageToVk(VkApi api, Image image, ulong groupId) {
         var sw = new Stopwatch();
         sw.Start();
@@ -151,22 +150,12 @@ public partial class MessageHandler
             string memeUrl = meme.Url;
             L.M($"Found meme URL: {memeUrl}");
 
-            // Get the server for uploading photos
-            var uploadServer = api.Photo.GetMessagesUploadServer((long)groupId).UploadUrl;
-            L.M($"Upload URL: {uploadServer}");
-
             try
             {
-                // Download meme image
-                using var httpClient = new HttpClient();
-                var response = await httpClient.GetAsync(memeUrl);
-                response.EnsureSuccessStatusCode();
-                var imageBytes = await response.Content.ReadAsByteArrayAsync();
-                using var memoryStream = new MemoryStream(imageBytes);
-                using var image = Image.Load<Rgba32>(memoryStream);
-
-                var photos = await UploadImageToVk(api, image, groupId);
-                if (photos == null) return;
+                var photo = await CopyImageToVk(api, new HttpClient(), memeUrl, groupId);
+                if (photo == null) {
+                    return;
+                }
 
                 string text = await MessageProcessor.KeepUpConversation();
 
@@ -176,7 +165,7 @@ public partial class MessageHandler
                     RandomId = _random.Next(),
                     PeerId = message.PeerId.Value,
                     ReplyTo = message.Id,
-                    Attachments = photos,
+                    Attachments = photo,
                     Message = text
                 });
 
@@ -244,31 +233,10 @@ public partial class MessageHandler
             string imageUrl = randomPost.FileUrl;
             L.M($"Found image URL: {imageUrl}");
 
-            var uploadServer = api.Photo.GetMessagesUploadServer((long)groupId).UploadUrl;
-            L.M($"Upload URL: {uploadServer}");
-
             try
             {
-                using HttpResponseMessage response = await ServiceEndpoint.DanbooruApi.Client.GetAsync(imageUrl);
-                response.EnsureSuccessStatusCode();
-                using Stream inputStream = await response.Content.ReadAsStreamAsync();
-                using var memoryStream = new MemoryStream();
-                await inputStream.CopyToAsync(memoryStream);
-                byte[] imageBytes = memoryStream.ToArray();
-                string boundary = "----WebKitFormBoundary7MA4YWxkTrZu0gW";
-
-                using var formDataContent = new MultipartFormDataContent(boundary);
-                formDataContent.Headers.Remove("Content-Type");
-                formDataContent.Headers.TryAddWithoutValidation("Content-Type", "multipart/form-data; boundary=" + boundary);
-                var byteArrayContent = new ByteArrayContent(imageBytes);
-                byteArrayContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/octet-stream");
-                formDataContent.Add(byteArrayContent, "file1", "anime.jpg");
-
-                using HttpResponseMessage uploadResponse = await ServiceEndpoint.DanbooruApi.Client.PostAsync(uploadServer, formDataContent);
-                uploadResponse.EnsureSuccessStatusCode();
-                string responseString = await uploadResponse.Content.ReadAsStringAsync();
-                var savedPhotos = api.Photo.SaveMessagesPhoto(responseString);
-                L.M("Anime image uploaded to VK.");
+                var photo = await CopyImageToVk(api, ServiceEndpoint.DanbooruApi.Client, imageUrl, groupId);
+                if (photo == null) return;
 
                 List<string> variableLabel = new List<string>()
                 {
@@ -319,7 +287,7 @@ public partial class MessageHandler
                 {
                     RandomId = _random.Next(),
                     PeerId = message.PeerId.Value,
-                    Attachments = savedPhotos,
+                    Attachments = photo,
                     ReplyTo = message.Id,
                     Keyboard = keyboard
                 });
@@ -365,41 +333,17 @@ public partial class MessageHandler
         // Если теги не указаны, будут использоваться отрицательные теги по умолчанию
         L.M($"Requesting Danbooru with tags: {tags}");
 
-        Services.Post? randomPost = await ServiceEndpoint.DanbooruApi.RandomImageAsync(onForbriddenTag, tags);
+        var imageUrl = await ServiceEndpoint.DanbooruApi.RandomImageAsync(onForbriddenTag, tags);
 
         if (isForb)
             return;
 
-        if (randomPost != null)
+        if (imageUrl != null)
         {
-            string imageUrl = randomPost.FileUrl;
             L.M($"Found image URL: {imageUrl}");
 
-            var uploadServer = api.Photo.GetMessagesUploadServer((long)groupId).UploadUrl;
-            L.M($"Upload URL: {uploadServer}");
-
-            try
-            {
-                using HttpResponseMessage response = await ServiceEndpoint.DanbooruApi.Client.GetAsync(imageUrl);
-                response.EnsureSuccessStatusCode();
-                using Stream inputStream = await response.Content.ReadAsStreamAsync();
-                using var memoryStream = new MemoryStream();
-                await inputStream.CopyToAsync(memoryStream);
-                byte[] imageBytes = memoryStream.ToArray();
-                string boundary = "----WebKitFormBoundary7MA4YWxkTrZu0gW";
-
-                using var formDataContent = new MultipartFormDataContent(boundary);
-                formDataContent.Headers.Remove("Content-Type");
-                formDataContent.Headers.TryAddWithoutValidation("Content-Type", "multipart/form-data; boundary=" + boundary);
-                var byteArrayContent = new ByteArrayContent(imageBytes);
-                byteArrayContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/octet-stream");
-                formDataContent.Add(byteArrayContent, "file1", "h.jpg");
-
-                using HttpResponseMessage uploadResponse = await ServiceEndpoint.DanbooruApi.Client.PostAsync(uploadServer, formDataContent);
-                uploadResponse.EnsureSuccessStatusCode();
-                string responseString = await uploadResponse.Content.ReadAsStringAsync();
-                var savedPhotos = api.Photo.SaveMessagesPhoto(responseString);
-                L.M("Anime image uploaded to VK.");
+            try {
+                var photo = await CopyImageToVk(api, ServiceEndpoint.DanbooruApi.Client, imageUrl, groupId);
 
                 var b = new MessageKeyboardButton
                 {
@@ -425,7 +369,7 @@ public partial class MessageHandler
                 {
                     RandomId = _random.Next(),
                     PeerId = message.PeerId.Value,
-                    Attachments = savedPhotos,
+                    Attachments = photo,
                     ReplyTo = message.Id,
                     Keyboard = keyboard
                 });
@@ -442,6 +386,38 @@ public partial class MessageHandler
         {
             L.M("No anime image found.");
             SendResponse(api, message.PeerId.Value, "Извините, не удалось найти изображение аниме.");
+        }
+    }
+
+    /// Asynchronously upload image from URL
+    private async Task<ReadOnlyCollection<Photo>?> CopyImageToVk(VkApi api, HttpClient client, string imageUrl, ulong groupId) {
+        var uploadUrl = api.Photo.GetMessagesUploadServer((long)groupId).UploadUrl;
+
+        try {
+            using var response = await client.GetAsync(imageUrl, HttpCompletionOption.ResponseHeadersRead);
+            response.EnsureSuccessStatusCode();
+
+
+            await using var stream = await response.Content.ReadAsStreamAsync();
+            using var content = new MultipartFormDataContent();
+
+            var fileContent = new StreamContent(stream);
+            fileContent.Headers.ContentType = MediaTypeHeaderValue.Parse("image/jpeg");
+            content.Add(fileContent, "photo", "image.jpeg");
+
+            using var httpClient = new HttpClient();
+            var vkResponse = await httpClient.PostAsync(uploadUrl, content);
+            if (!vkResponse.IsSuccessStatusCode) {
+                L.W($"CopyImageToVk: VK returned {vkResponse.StatusCode} status code");
+                return null;
+            }
+
+            var responseString = await vkResponse.Content.ReadAsStringAsync();
+            return api.Photo.SaveMessagesPhoto(responseString);
+        } catch (Exception e) {
+            L.E($"Failed to download image from {imageUrl}");
+            L.E(e);
+            return null;
         }
     }
 
@@ -913,16 +889,8 @@ public static class MessagesExtentions
 {
     public static void Out(this Message message)
     {
-        string isReply = message.ReplyMessage != null ? $"Reply from userID: {message.ReplyMessage.FromId}" : "Is not reply";
-
-        string formatted = $"from: {message.FromId}, mId:{message.Id} : {message.Date}";
-
-        //200000000 для бесед
-        if (message.PeerId.ToString().StartsWith("200000000"))
-            Console.ForegroundColor = ConsoleColor.Red;
-        else
-            Console.ForegroundColor = ConsoleColor.Green;
-
+        string formatted = $"From: {message.FromId}, Id: {message.Id} : {message.Date}, Peer: {message.PeerId}";
+        Console.ForegroundColor = message.PeerId > 2000000000 ? ConsoleColor.Red : ConsoleColor.Green;
         Console.WriteLine(formatted);
         Console.ForegroundColor = ConsoleColor.White;
     }

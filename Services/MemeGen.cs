@@ -1,6 +1,7 @@
 ﻿using System.Text.Json;
 using System.Text.Json.Serialization;
 using vkbot_vitalya.Config;
+using vkbot_vitalya.Core;
 
 namespace vkbot_vitalya.Services;
 
@@ -11,7 +12,7 @@ public class MemeGen
     {
         if (auth.MemeGenApiKey == null)
         {
-            Console.WriteLine("Put the meme apikey into auth.json file!");
+            L.M("Put the meme apikey into auth.json file!");
             ApiKey = string.Empty;
         }
         else
@@ -34,7 +35,7 @@ public class MemeGen
             string memetype = GetMemeTypeString(type);
             string url = $"https://api.apileague.com/search-memes?keywords={keywords}&number={number}&media-type={memetype}";
 
-            Console.WriteLine($"Request form: " + url);
+            L.M($"Request form: " + url);
 
             HttpResponseMessage response = await Client.GetAsync(url);
             response.EnsureSuccessStatusCode();
@@ -44,7 +45,7 @@ public class MemeGen
 
             if (memes != null)
             {
-                Console.WriteLine($"Finded {memes.Memes.Count} memes!");
+                L.M($"Finded {memes.Memes.Count} memes!");
                 return memes;
             }
             else
@@ -54,8 +55,7 @@ public class MemeGen
         }
         catch (HttpRequestException e)
         {
-            Console.WriteLine("\nException Caught!");
-            Console.WriteLine("Message :{0} ", e.Message);
+            L.E(e);
             return null;
         }
     }
@@ -95,9 +95,7 @@ public class MemeGen
         }
         catch (HttpRequestException e)
         {
-            Console.WriteLine("\nException Caught!");
-            Console.WriteLine("Message :{0} ", e.Message);
-
+            L.E(e);
             return null;
         }
     }
@@ -113,12 +111,11 @@ public class MemeGen
             response.EnsureSuccessStatusCode();
             string responseBody = await response.Content.ReadAsStringAsync();
 
-            Console.WriteLine(responseBody);
+            L.M(responseBody);
         }
         catch (HttpRequestException e)
         {
-            Console.WriteLine("\nException Caught!");
-            Console.WriteLine("Message :{0} ", e.Message);
+            L.E(e);
         }
     }
 

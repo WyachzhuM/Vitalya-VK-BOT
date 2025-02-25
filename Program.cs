@@ -1,13 +1,16 @@
 ﻿using System.Text;
+using log4net;
+using log4net.Config;
 using vkbot_vitalya.Config;
 using vkbot_vitalya.Core;
 using vkbot_vitalya.Core.Saver;
-using vkbot_vitalya.Services.Generators.TextGeneration;
 using VkNet;
 using VkNet.Exception;
 using VkNet.Model;
 
+
 namespace vkbot_vitalya;
+
 
 public static class Program
 {
@@ -24,13 +27,11 @@ public static class Program
 
     private static ManualResetEvent _shutdownEvent = new ManualResetEvent(false);
 
-    public static void Main(string[] args)
-    {
+    public static void Main(string[] args) {
         Console.OutputEncoding = Encoding.Unicode;
         Console.ForegroundColor = ConsoleColor.White;
 
         L.M($"Bot started at {DateTime.Now}");
-
         if (!File.Exists(_authPath) || !File.Exists(_configPath))
         {
             L.M($"Auth file or config file is missing");
@@ -59,12 +60,9 @@ public static class Program
         catch (Exception ex)
         {
             L.M($"Authorization failed: {ex.Message}");
-            Console.WriteLine($"Authorization failed: {ex.Message}");
             return;
         }
-
-        L.M("Bot is running...");
-
+        
         SetupSignalHandling();
 
         try
@@ -75,12 +73,9 @@ public static class Program
         catch (Exception ex)
         {
             L.M($"Error in long poll: {ex.Message}");
-            Console.WriteLine($"Error in long poll: {ex.Message}");
             return;
         }
 
-        // Keep the vitalya running
-        L.M("Entering infinite loop, waiting for termination signal");
         _shutdownEvent.WaitOne();
         L.M($"Bot stopped at {DateTime.Now}");
     }
@@ -112,7 +107,6 @@ public static class Program
                     if (update.Instance is MessageNew messageNew)
                     {
                         var message = messageNew.Message;
-                        L.M($"New message from {message.FromId}: {message.Text}");
 
                         bool dontSave = _exceptDict.GetExceptions().Any(message.Text.StartsWith);
 

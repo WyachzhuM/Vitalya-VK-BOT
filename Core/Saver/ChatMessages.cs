@@ -70,7 +70,7 @@ public class ChatMessages
     {
         if (!File.Exists(fullpath))
         {
-            L.M($"{nameof(ChatMessages)}: File {fullpath} does not exist. Creating new ChatMessages instance.");
+            L.W($"File {fullpath} does not exist. Creating new ChatMessages instance.");
             return new ChatMessages();
         }
 
@@ -78,12 +78,12 @@ public class ChatMessages
 
         var result = JsonSerializer.Deserialize<ChatMessages>(content);
 
-        if (result != null)
-            return result;
+        if (result == null) {
+            L.E($"Failed to deserialize ChatMessages ({fullpath})");
+            return new ChatMessages();
+        }
 
-        L.M($"{nameof(ChatMessages)}: JsonSerializer.Deserialize<ChatMessages>(content) == NULL");
-
-        return new ChatMessages();
+        return result;
     }
 
     private string Serialize() => JsonSerializer.Serialize(this, new JsonSerializerOptions { WriteIndented = true });
@@ -92,22 +92,16 @@ public class ChatMessages
     {
         if (message == null)
         {
-            L.M($"{nameof(ChatMessages)}: message is NULL");
+            L.D($"{nameof(ChatMessages)}: message is NULL");
             return;
         }
 
         string fullpath = Path.Combine(filePath, GetFileName(message.PeerId.ToString()));
-        L.M($"{nameof(ChatMessages)}: Trying to read file from {fullpath}");
+        L.D($"{nameof(ChatMessages)}: Trying to read file from {fullpath}");
 
         var chatMessages = await Deserialize(fullpath);
 
-        if (chatMessages == null)
-        {
-            L.M($"{nameof(ChatMessages)}: Retrieved chatMessages is NULL");
-            return;
-        }
-
-        L.M($"{nameof(ChatMessages)}: Deserialized chatMessages successfully");
+        L.D($"{nameof(ChatMessages)}: Deserialized chatMessages successfully");
 
         ChatMessage message1 = new ChatMessage(message.FromId, message.Text, message.Date, message.ConversationMessageId);
 
@@ -122,11 +116,11 @@ public class ChatMessages
         {
             string json = JsonSerializer.Serialize(chatMessages, new JsonSerializerOptions { WriteIndented = true });
             await File.WriteAllTextAsync(fullpath, json);
-            L.M($"{nameof(ChatMessages)}: Updated and wrote to file successfully");
+            L.D($"{nameof(ChatMessages)}: Updated and wrote to file successfully");
         }
         catch (Exception ex)
         {
-            L.M($"{nameof(ChatMessages)}: Error serializing or writing to file: {ex.Message}");
+            L.E($"{nameof(ChatMessages)}: Error serializing or writing to file: {ex.Message}");
         }
     }
 

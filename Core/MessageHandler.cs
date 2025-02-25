@@ -56,11 +56,7 @@ public partial class MessageHandler
             return;
         }
 
-        if (IsDebug)
-        {
-            L.M("New message...");
-            message.Out();
-        }
+        message.Out();
 
         MessageSaving(message);
 
@@ -145,21 +141,20 @@ public partial class MessageHandler
         _saves.Save(SavesFilePath);
     }
 
-    private void SendResponse(VkApi api, long? peerId, string message)
-    {
-        if (peerId != null)
-        {
-            api.Messages.Send(new MessagesSendParams
-            {
-                RandomId = _random.Next(),
-                PeerId = peerId,
-                Message = message
-            });
-            L.M($"Sent response: {message}");
-        }
-        else
-        {
-            Console.WriteLine("peerId is NULL");
+    private void SendResponse(VkApi api, long? peerId, string message) {
+        try {
+            if (peerId != null) {
+                api.Messages.Send(new MessagesSendParams {
+                    RandomId = _random.Next(),
+                    PeerId = peerId,
+                    Message = message
+                });
+                L.M($"Sent response: {message}");
+            } else {
+                L.M("peerId is NULL");
+            }
+        } catch (Exception e) {
+            L.E(e);
         }
     }
 
@@ -178,7 +173,7 @@ public partial class MessageHandler
         }
         else
         {
-            Console.WriteLine("peerId is NULL");
+            L.M("peerId is NULL");
         }
     }
 

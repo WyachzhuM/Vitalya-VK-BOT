@@ -1,5 +1,6 @@
 ﻿using System.Text.Json;
 using System.Text.Json.Serialization;
+using vkbot_vitalya.Core;
 
 namespace vkbot_vitalya.Config;
 
@@ -63,7 +64,7 @@ public class Authentication
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error reading AuthBotFile: {ex.Message}");
+            L.E("Error reading AuthBotFile", ex);
             return Default();
         }
     }
@@ -75,11 +76,11 @@ public class Authentication
             var json = JsonSerializer.Serialize(this);
             var fullPath = Path.Combine(filePath, $"{fileName}.json");
             File.WriteAllText(fullPath, json);
-            Console.WriteLine($"AuthBotFile saved in {fullPath}");
+            L.M($"AuthBotFile saved in {fullPath}");
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error saving AuthBotFile: {ex.Message}");
+            L.M($"Error saving AuthBotFile: {ex.Message}");
         }
     }
 

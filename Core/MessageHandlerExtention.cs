@@ -127,7 +127,7 @@ public partial class MessageHandler
         var responseString = await response.Content.ReadAsStringAsync();
         var photos = api.Photo.SaveMessagesPhoto(responseString);
         sw.Stop();
-        L.M($"Photo uploaded to VK. It took {sw.ElapsedMilliseconds} ms.");
+        L.M($"Photo uploaded to VK in {sw.ElapsedMilliseconds} ms");
         return photos;
     }
 
@@ -223,8 +223,6 @@ public partial class MessageHandler
 
         // Если теги не указаны, будут использоваться отрицательные теги по умолчанию
         L.M($"Requesting Danbooru with tags: {tags}");
-
-        Console.WriteLine(tags);
 
         var randomPost = await ServiceEndpoint.SafebooruApi.GetRandomPostAsync(tags);
 
@@ -391,6 +389,8 @@ public partial class MessageHandler
 
     /// Asynchronously upload image from URL
     private async Task<ReadOnlyCollection<Photo>?> CopyImageToVk(VkApi api, HttpClient client, string imageUrl, ulong groupId) {
+        var sw = new Stopwatch();
+        sw.Start();
         var uploadUrl = api.Photo.GetMessagesUploadServer((long)groupId).UploadUrl;
 
         try {
@@ -413,7 +413,10 @@ public partial class MessageHandler
             }
 
             var responseString = await vkResponse.Content.ReadAsStringAsync();
-            return api.Photo.SaveMessagesPhoto(responseString);
+            var photo = api.Photo.SaveMessagesPhoto(responseString);
+            sw.Stop();
+            L.M($"Photo copied to VK in {sw.ElapsedMilliseconds} ms");
+            return photo;
         } catch (Exception e) {
             L.E($"Failed to download image from {imageUrl}");
             L.E(e);
@@ -628,26 +631,26 @@ public partial class MessageHandler
             string task = GenerateChaosTask($"[id{randomMember2.Id}|{randomMember2.FirstName} {randomMember2.LastName}]");
 
             var buttons = new List<MessageKeyboardButton>
-        {
-            new MessageKeyboardButton
             {
-                Action = new MessageKeyboardButtonAction
+                new MessageKeyboardButton
                 {
-                    Type = VkNet.Enums.StringEnums.KeyboardButtonActionType.Text,
-                    Label = "Выполнено",
-                    Payload = JsonConvert.SerializeObject(new { command = "chaos_done", victim = victimId })
-                }
-            },
-            new MessageKeyboardButton
-            {
-                Action = new MessageKeyboardButtonAction
+                    Action = new MessageKeyboardButtonAction
+                    {
+                        Type = VkNet.Enums.StringEnums.KeyboardButtonActionType.Text,
+                        Label = "Выполнено",
+                        Payload = JsonConvert.SerializeObject(new { command = "chaos_done", victim = victimId })
+                    }
+                },
+                new MessageKeyboardButton
                 {
-                    Type = VkNet.Enums.StringEnums.KeyboardButtonActionType.Text,
-                    Label = "Провал",
-                    Payload = JsonConvert.SerializeObject(new { command = "chaos_fail", victim = victimId })
+                    Action = new MessageKeyboardButtonAction
+                    {
+                        Type = VkNet.Enums.StringEnums.KeyboardButtonActionType.Text,
+                        Label = "Провал",
+                        Payload = JsonConvert.SerializeObject(new { command = "chaos_fail", victim = victimId })
+                    }
                 }
-            }
-        };
+            };
 
             var keyboard = new MessageKeyboard
             {
@@ -676,47 +679,47 @@ public partial class MessageHandler
     {
         Random random = new Random();
         string[] actions = {
-        $"выебать {name}",
-        $"трахнуть {name}",
-        $"написать выебан на жопе {name}",
-        $"пойти нахуй",
-        $"сделать KYS",
-        $"спонсировать побег в лес",
-        $"выебать {name} в жопу с разбега",
-        $"трахнуть {name} до потери пульса",
-        $"засунуть {name} голову в унитаз и смыть",
-        $"сломать {name} нос об стену",
-        $"выбить {name} зубы кувалдой",
-        $"раздавить {name} яйца прессом",
-        $"заставить {name} спорить с зеркалом до слез",
-        $"сказать {name}, что голоса в голове хотят пиццу",
-        $"заставить {name} танцевать с воображаемой бабкой",
-        $"написать на лбу {name} \"шиза внутри\" и отправить в магазин",
-        $"убедить {name}, что его кот — агент ФСБ",
-        $"заставить {name} шептать \"я нормальный\" в подушку всю ночь",
-        $"подарить {name} пустую коробку как \"лекарство от голосов\"",
-        $"сказать {name}, что его тень хочет его задушить",
-        $"заставить {name} искать Wi-Fi в лесу от деревьев",
-        $"убедить {name}, что он застрял в симуляции без выхода",
-        $"заставить {name} петь колыбельную своему отражению",
-        $"сказать {name}, что его мозг сбежал через уши",
-        $"заставить {name} обнимать мусорку и называть ее мамой",
-        $"убедить {name}, что дождь — это слезы его второго я",
-        $"заставить {name} искать свою душу в унитазе",
-        $"сказать {name}, что он умер, но не заметил",
-        $"заставить {name} писать письма своему выдуманному другу в стену",
-        $"убедить {name}, что он — картошка в прошлой жизни",
-        $"заставить {name} кричать \"где мой разум\" в пустую комнату",
-        $"сказать {name}, что его ноги — шпионы и следят за ним",
-        $"заставить {name} рисовать круги и шептать \"это мой дом\"",
-        $"убедить {name}, что лампа в комнате — его босс",
-        $"заставить {name} носить носок на руке как вторую личность",
-        $"сказать {name}, что его голоса в голове устраивают забастовку",
-        $"заставить {name} искать таблетки в миске с макаронами",
-        $"убедить {name}, что он видит мир в инверсии",
-        $"заставить {name} гладить воздух и называть его псом"
+            $"выебать {name}",
+            $"трахнуть {name}",
+            $"написать выебан на жопе {name}",
+            $"пойти нахуй",
+            $"сделать KYS",
+            $"спонсировать побег в лес",
+            $"выебать {name} в жопу с разбега",
+            $"трахнуть {name} до потери пульса",
+            $"засунуть {name} голову в унитаз и смыть",
+            $"сломать {name} нос об стену",
+            $"выбить {name} зубы кувалдой",
+            $"раздавить {name} яйца прессом",
+            $"заставить {name} спорить с зеркалом до слез",
+            $"сказать {name}, что голоса в голове хотят пиццу",
+            $"заставить {name} танцевать с воображаемой бабкой",
+            $"написать на лбу {name} \"шиза внутри\" и отправить в магазин",
+            $"убедить {name}, что его кот — агент ФСБ",
+            $"заставить {name} шептать \"я нормальный\" в подушку всю ночь",
+            $"подарить {name} пустую коробку как \"лекарство от голосов\"",
+            $"сказать {name}, что его тень хочет его задушить",
+            $"заставить {name} искать Wi-Fi в лесу от деревьев",
+            $"убедить {name}, что он застрял в симуляции без выхода",
+            $"заставить {name} петь колыбельную своему отражению",
+            $"сказать {name}, что его мозг сбежал через уши",
+            $"заставить {name} обнимать мусорку и называть ее мамой",
+            $"убедить {name}, что дождь — это слезы его второго я",
+            $"заставить {name} искать свою душу в унитазе",
+            $"сказать {name}, что он умер, но не заметил",
+            $"заставить {name} писать письма своему выдуманному другу в стену",
+            $"убедить {name}, что он — картошка в прошлой жизни",
+            $"заставить {name} кричать \"где мой разум\" в пустую комнату",
+            $"сказать {name}, что его ноги — шпионы и следят за ним",
+            $"заставить {name} рисовать круги и шептать \"это мой дом\"",
+            $"убедить {name}, что лампа в комнате — его босс",
+            $"заставить {name} носить носок на руке как вторую личность",
+            $"сказать {name}, что его голоса в голове устраивают забастовку",
+            $"заставить {name} искать таблетки в миске с макаронами",
+            $"убедить {name}, что он видит мир в инверсии",
+            $"заставить {name} гладить воздух и называть его псом"
 
-    };
+        };
         return actions[random.Next(actions.Length)];
     }
 
@@ -789,7 +792,7 @@ public partial class MessageHandler
         }
         catch (VkNet.Exception.ConversationAccessDeniedException ex)
         {
-            Console.WriteLine($"Access denied to chat {chatId}: {ex.Message}");
+            L.M($"Access denied to chat {chatId}: {ex.Message}");
             return false;
         }
     }
@@ -889,9 +892,6 @@ public static class MessagesExtentions
 {
     public static void Out(this Message message)
     {
-        string formatted = $"From: {message.FromId}, Id: {message.Id} : {message.Date}, Peer: {message.PeerId}";
-        Console.ForegroundColor = message.PeerId > 2000000000 ? ConsoleColor.Red : ConsoleColor.Green;
-        Console.WriteLine(formatted);
-        Console.ForegroundColor = ConsoleColor.White;
+        L.M($"New message in chat {message.PeerId} from {message.FromId} (id: {message.Id})");
     }
 }

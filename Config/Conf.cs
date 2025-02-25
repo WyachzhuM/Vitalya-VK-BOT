@@ -19,7 +19,7 @@ public class Conf
         AdditionalData = additionalData;
     }
 
-    public static Conf? Instance { get; private set; }
+    public static Conf Instance { get; private set; }
 
     [JsonPropertyName("bot_names")]
     public List<string> BotNames { get; set; }
@@ -47,7 +47,7 @@ public class Conf
             return null;
         }
 
-        Instance = result;
+        Instance = result ?? throw new Exception("Invalid config file");
         return result;
     }
 }

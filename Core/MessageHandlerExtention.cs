@@ -607,7 +607,7 @@ public partial class MessageHandler
         }
     }
 
-    private async void HandleChaosCommand(VkApi api, Message message, ulong groupId)
+    private async void HandleChaosCommand(VkApi api, Message message)
     {
         string commandText = message.Text.Trim();
         string[] commandParts = commandText.Split(new[] { ' ' }, 2); // "v chaos"
@@ -623,12 +623,11 @@ public partial class MessageHandler
         try
         {
             var members = await api.Messages.GetConversationMembersAsync(message.PeerId.Value);
-            var randomMember = members.Profiles.OrderBy(x => Guid.NewGuid()).First();
-            long victimId = randomMember.Id;
+            var victim = members.Profiles.OrderBy(x => Guid.NewGuid()).First();
 
             var randomMember2 = members.Profiles.OrderBy(x => Guid.NewGuid()).First();
 
-            string task = GenerateChaosTask($"[id{randomMember2.Id}|{randomMember2.FirstName} {randomMember2.LastName}]");
+            string task = GenerateChaosTask(Vk.PingUser(randomMember2));
 
             var buttons = new List<MessageKeyboardButton>
             {
@@ -638,7 +637,7 @@ public partial class MessageHandler
                     {
                         Type = VkNet.Enums.StringEnums.KeyboardButtonActionType.Text,
                         Label = "Выполнено",
-                        Payload = JsonConvert.SerializeObject(new { command = "chaos_done", victim = victimId })
+                        Payload = JsonConvert.SerializeObject(new { command = "chaos_done", victim = victim.Id })
                     }
                 },
                 new MessageKeyboardButton
@@ -647,7 +646,7 @@ public partial class MessageHandler
                     {
                         Type = VkNet.Enums.StringEnums.KeyboardButtonActionType.Text,
                         Label = "Провал",
-                        Payload = JsonConvert.SerializeObject(new { command = "chaos_fail", victim = victimId })
+                        Payload = JsonConvert.SerializeObject(new { command = "chaos_fail", victim = victim.Id })
                     }
                 }
             };
@@ -662,11 +661,11 @@ public partial class MessageHandler
             {
                 RandomId = new Random().Next(),
                 PeerId = message.PeerId.Value,
-                Message = $"🔥 Хаос начинается! Жертва: [id{victimId}|{randomMember.FirstName} {randomMember.LastName}]\nЗадание: {task}\nГолосуйте!",
+                Message = $"🔥 Хаос начинается! Жертва: {Vk.PingUser(victim)}\nЗадание: {task}\nГолосуйте!",
                 Keyboard = keyboard
             });
 
-            L.M($"Chaos task assigned to {randomMember.FirstName}: {task}");
+            L.M($"Chaos task assigned to {victim.FirstName}: {task}");
         }
         catch (Exception ex)
         {
@@ -734,18 +733,18 @@ public partial class MessageHandler
             return;
         }
 
-        if (chat.Propertyes == null)
+        if (chat.Properties == null)
         {
-            chat.Propertyes = new ChatPropertyes();
+            chat.Properties = new ChatProperties();
             _saves.Save(SavesFilePath);
         }
 
-        var b1 = CreateToggleButton(chat.Propertyes.IsAnime, "anime", "Аниме");
-        var b2 = CreateToggleButton(chat.Propertyes.IsHentai, "hentai", "Хентай");
-        var b3 = CreateToggleButton(chat.Propertyes.IsImageProccestion, "image_processing", "Обработка изображений");
-        var b4 = CreateToggleButton(chat.Propertyes.IsMeme, "meme", "Мемы");
-        var b5 = CreateToggleButton(chat.Propertyes.IsWeather, "weather", "Погода");
-        var b6 = CreateToggleButton(chat.Propertyes.IsLocation, "location", "Местоположение");
+        var b1 = CreateToggleButton(chat.Properties.IsAnime, "anime", "Аниме");
+        var b2 = CreateToggleButton(chat.Properties.IsHentai, "hentai", "Хентай");
+        var b3 = CreateToggleButton(chat.Properties.IsImageProccestion, "image_processing", "Обработка изображений");
+        var b4 = CreateToggleButton(chat.Properties.IsMeme, "meme", "Мемы");
+        var b5 = CreateToggleButton(chat.Properties.IsWeather, "weather", "Погода");
+        var b6 = CreateToggleButton(chat.Properties.IsLocation, "location", "Местоположение");
 
         List<MessageKeyboardButton> buttonsRow1 = new List<MessageKeyboardButton> { b1, b2, b3 };
         List<MessageKeyboardButton> buttonsRow2 = new List<MessageKeyboardButton> { b4, b5, b6 };
@@ -845,31 +844,31 @@ public partial class MessageHandler
                 return;
             }
 
-            if (chat.Propertyes == null)
+            if (chat.Properties == null)
             {
-                chat.Propertyes = new ChatPropertyes();
+                chat.Properties = new ChatProperties();
                 _saves.Save(SavesFilePath);
             }
 
             switch (command)
             {
                 case "toggle_anime":
-                    chat.Propertyes.IsAnime = !chat.Propertyes.IsAnime;
+                    chat.Properties.IsAnime = !chat.Properties.IsAnime;
                     break;
                 case "toggle_hentai":
-                    chat.Propertyes.IsHentai = !chat.Propertyes.IsHentai;
+                    chat.Properties.IsHentai = !chat.Properties.IsHentai;
                     break;
                 case "toggle_image_processing":
-                    chat.Propertyes.IsImageProccestion = !chat.Propertyes.IsImageProccestion;
+                    chat.Properties.IsImageProccestion = !chat.Properties.IsImageProccestion;
                     break;
                 case "toggle_meme":
-                    chat.Propertyes.IsMeme = !chat.Propertyes.IsMeme;
+                    chat.Properties.IsMeme = !chat.Properties.IsMeme;
                     break;
                 case "toggle_weather":
-                    chat.Propertyes.IsWeather = !chat.Propertyes.IsWeather;
+                    chat.Properties.IsWeather = !chat.Properties.IsWeather;
                     break;
                 case "toggle_location":
-                    chat.Propertyes.IsLocation = !chat.Propertyes.IsLocation;
+                    chat.Properties.IsLocation = !chat.Properties.IsLocation;
                     break;
 
                 default:
@@ -879,13 +878,19 @@ public partial class MessageHandler
 
             _saves.Save(SavesFilePath);
 
-            SendResponse(api, message.PeerId.Value, "Настройки обновлены.");
+            SendResponse(api, message.PeerId!.Value, "Настройки обновлены.");
 
             // Отправляем обновленную клавиатуру
             HandleSettingsCommand(api, message, (ulong)chatId);
         }
     }
     #endregion
+
+    private void HandleWhoCommand(VkApi api, Message message) {
+        var users = api.Messages.GetConversationMembers(message.PeerId!.Value).Profiles;
+        var answerUser = users[_random.Next(users.Count)];
+        SendResponse(api, message.PeerId!.Value, $"По-моему, это {Vk.PingUser(answerUser)}");
+    }
 }
 
 public static class MessagesExtentions

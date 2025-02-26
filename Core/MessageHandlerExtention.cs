@@ -909,7 +909,7 @@ public partial class MessageHandler
     #endregion
 }
 
-public static class MessagesExtentions
+public static class MessagesExtensions
 {
     public static void Out(this Message message)
     {

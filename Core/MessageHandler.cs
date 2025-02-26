@@ -147,38 +147,52 @@ public partial class MessageHandler
 
     private void SendResponse(VkApi api, long? peerId, string message)
     {
-        if (peerId != null)
+        try
         {
-            api.Messages.Send(new MessagesSendParams
+            if (peerId != null)
             {
-                RandomId = _random.Next(),
-                PeerId = peerId,
-                Message = message
-            });
-            L.M($"Sent response: {message}");
+                api.Messages.Send(new MessagesSendParams
+                {
+                    RandomId = _random.Next(),
+                    PeerId = peerId,
+                    Message = message
+                });
+                L.M($"Sent response: {message}");
+            }
+            else
+            {
+                Console.WriteLine("peerId is NULL");
+            }
         }
-        else
+        catch (Exception ex)
         {
-            Console.WriteLine("peerId is NULL");
+            L.E(ex);
         }
     }
 
     private void SendResponse(VkApi api, long? peerId, string message, long? replyTo)
     {
-        if (peerId != null)
+        try
         {
-            api.Messages.Send(new MessagesSendParams
+            if (peerId != null)
             {
-                RandomId = _random.Next(),
-                PeerId = peerId,
-                ReplyTo = replyTo,
-                Message = message
-            });
-            L.M($"Sent response: {message}");
+                api.Messages.Send(new MessagesSendParams
+                {
+                    RandomId = _random.Next(),
+                    PeerId = peerId,
+                    ReplyTo = replyTo,
+                    Message = message
+                });
+                L.M($"Sent response: {message}");
+            }
+            else
+            {
+                Console.WriteLine("peerId is NULL");
+            }
         }
-        else
+        catch (Exception ex)
         {
-            Console.WriteLine("peerId is NULL");
+            L.E(ex);
         }
     }
 

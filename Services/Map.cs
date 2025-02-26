@@ -7,6 +7,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Web;
 using vkbot_vitalya.Config;
+using vkbot_vitalya.Core;
 
 namespace vkbot_vitalya.Services;
 
@@ -22,7 +23,7 @@ public class Map
 
         if (coordinates == null)
         {
-            Console.WriteLine("Location not found.");
+            L.M("Location not found.");
             return (null, (string.Empty, string.Empty));
         }
 
@@ -31,7 +32,7 @@ public class Map
 
         if (mapImage == null)
         {
-            Console.WriteLine("Failed to retrieve map image.");
+            L.M("Failed to retrieve map image.");
             return (null, (string.Empty, string.Empty));
         }
 
@@ -49,24 +50,24 @@ public class Map
         {
             string encodedAddress = HttpUtility.UrlEncode(address);
             string url = $"https://nominatim.openstreetmap.org/search?q={encodedAddress}&format=json&limit=1";
-            Console.WriteLine($"Request URL: {url}");
+            L.M($"Request URL: {url}");
 
             var response = await httpClient.GetAsync(url);
 
             if (!response.IsSuccessStatusCode)
             {
-                Console.WriteLine($"HTTP Error: {(int)response.StatusCode} - {response.ReasonPhrase}");
+                L.M($"HTTP Error: {(int)response.StatusCode} - {response.ReasonPhrase}");
                 return null;
             }
 
             var responseContent = await response.Content.ReadAsStringAsync();
-            Console.WriteLine($"Response: {responseContent}");
+            L.D($"Response: {responseContent}");
 
             var locationData = JsonSerializer.Deserialize<Location[]>(responseContent);
 
             if (locationData == null || locationData.Length == 0)
             {
-                Console.WriteLine("No location data found.");
+                L.M("No location data found.");
                 return null;
             }
 
@@ -76,28 +77,28 @@ public class Map
             if (double.TryParse(latString, NumberStyles.Float, CultureInfo.InvariantCulture, out double lat) &&
                 double.TryParse(lonString, NumberStyles.Float, CultureInfo.InvariantCulture, out double lon))
             {
-                Console.WriteLine($"Coordinates: lat={lat}, lon={lon}");
+                L.M($"Coordinates: lat={lat}, lon={lon}");
                 return (lat, lon);
             }
             else
             {
-                Console.WriteLine("Failed to convert coordinates to doubles.");
+                L.M("Failed to convert coordinates to doubles.");
                 return null;
             }
         }
         catch (HttpRequestException e)
         {
-            Console.WriteLine($"Request error: {e.Message}");
+            L.M($"Request error: {e.Message}");
             return null;
         }
         catch (JsonException e)
         {
-            Console.WriteLine($"JSON parsing error: {e.Message}");
+            L.M($"JSON parsing error: {e.Message}");
             return null;
         }
         catch (Exception e)
         {
-            Console.WriteLine($"Unexpected error: {e.Message}");
+            L.M($"Unexpected error: {e.Message}");
             return null;
         }
     }
@@ -116,7 +117,7 @@ public class Map
 
             if (!response.IsSuccessStatusCode)
             {
-                Console.WriteLine($"HTTP Error: {(int)response.StatusCode} - {response.ReasonPhrase}");
+                L.M($"HTTP Error: {(int)response.StatusCode} - {response.ReasonPhrase}");
                 return null;
             }
 
@@ -125,12 +126,12 @@ public class Map
         }
         catch (HttpRequestException e)
         {
-            Console.WriteLine($"Request error: {e.Message}");
+            L.M($"Request error: {e.Message}");
             return null;
         }
         catch (Exception e)
         {
-            Console.WriteLine($"Unexpected error: {e.Message}");
+            L.M($"Unexpected error: {e.Message}");
             return null;
         }
     }

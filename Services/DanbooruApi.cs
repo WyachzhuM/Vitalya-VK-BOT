@@ -46,7 +46,7 @@ public class DanbooruApi
     private string ApiKey { get; set; }
     private string Login { get; set; }
 
-    public async Task<Post?> RandomImageAsync(Action onForbTag, string tags = "", string excludeTags = "yaoi,2boys,multiple_boys,male_penetrated,bara, male_focus, muscular_male, cum_on_male, facial_hair", int count = 1)
+    public async Task<string?> RandomImageAsync(Action onForbTag, string tags = "", string excludeTags = "yaoi,2boys,multiple_boys,male_penetrated,bara, male_focus, muscular_male, cum_on_male, facial_hair", int count = 1)
     {
         try
         {
@@ -96,13 +96,15 @@ public class DanbooruApi
                             }
                         });
 
-                        if (isEnough)
+                        if (isEnough) {
+                            L.M("Found forbidden tags, aborting");
                             break;
+                        }
 
                         // Добавляем проверку типа файла
                         if (post.FileUrl.EndsWith(".jpg") || post.FileUrl.EndsWith(".jpeg") || post.FileUrl.EndsWith(".png") || post.FileUrl.EndsWith(".gif"))
                         {
-                            return post;
+                            return post.FileUrl;
                         }
                         else
                         {
@@ -123,19 +125,19 @@ public class DanbooruApi
         }
         catch (HttpRequestException e)
         {
-            Console.WriteLine($"HttpRequestException: {e.Message}");
+            L.M($"HttpRequestException: {e.Message}");
             if (e.InnerException != null)
             {
-                Console.WriteLine($"Inner Exception: {e.InnerException.Message}");
+                L.M($"Inner Exception: {e.InnerException.Message}");
             }
             File.AppendAllText("./log.txt", $"HttpRequestException: {e.Message}\n");
         }
         catch (Exception e)
         {
-            Console.WriteLine($"Exception: {e.Message}");
+            L.M($"Exception: {e.Message}");
             if (e.InnerException != null)
             {
-                Console.WriteLine($"Inner Exception: {e.InnerException.Message}");
+                L.M($"Inner Exception: {e.InnerException.Message}");
             }
             File.AppendAllText("./log.txt", $"Exception: {e.Message}\n");
         }

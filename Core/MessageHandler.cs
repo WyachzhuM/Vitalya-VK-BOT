@@ -16,7 +16,7 @@ public partial class MessageHandler
     private Random _random = new Random();
     private Timer _messageTimer, _updateTimer;
     private VkApi _vkApi;
-    private Conf? _config = Conf.Instance;
+    private readonly Conf _config = Conf.Instance;
     private ulong _groupId;
     private Saves _saves;
     private List<UserRequest> _userRequests;
@@ -45,45 +45,27 @@ public partial class MessageHandler
     /// <summary>
     /// Метод загрузки параметров сообщения
     /// </summary>
-    public void HandleMessage(VkApi api, Message message, ulong groupId)
-    {
-        this._vkApi = api;
-        this._groupId = groupId;
+    public void HandleMessage(VkApi api, Message message, ulong groupId) {
+        _vkApi = api;
+        _groupId = groupId;
 
-        if (api == null || message == null)
-        {
-            L.M("API, message, or config is null");
-            return;
-        }
-
-        if (IsDebug)
-        {
-            L.M("New message...");
-            message.Out();
-        }
+        message.Out();
 
         MessageSaving(message);
 
-        UserRequest userMessage = new UserRequest(message, _config);
+        var userMessage = new UserRequest(message, _config);
 
-        userMessage.onPayload = (string payload) =>
-        {
-            HandlePayload(api, userMessage.Message, groupId);
-        };
+        userMessage.onPayload = payload => { HandlePayload(api, userMessage.Message, groupId); };
 
-        userMessage.onSimpleText = async (message) =>
-        {
-            if (_random.NextDouble() < _config.ResponseProbability)
-            {
+        userMessage.onSimpleText = async message => {
+            if (_random.NextDouble() < _config.ResponseProbability) {
                 var responseMessage = await MessageProcessor.KeepUpConversation(message);
                 SendResponse(api, message.PeerId.Value, responseMessage);
             }
         };
 
-        userMessage.onCommand = async (Cmd cmd) =>
-        {
-            switch (cmd.CommandName)
-            {
+        userMessage.onCommand = async cmd => {
+            switch (cmd.CommandName) {
                 case "meme":
                     HandleMemeCommand(api, message, groupId, cmd.Args);
 
@@ -118,15 +100,19 @@ public partial class MessageHandler
 
                 case "generate_sentences":
                     var sentencesResponseMessage = await MessageProcessor.KeepUpConversation();
-                    SendResponse(api, message.PeerId.Value, sentencesResponseMessage);
+                    SendResponse(api, message.PeerId!.Value, sentencesResponseMessage);
                     return;
                 case "echo":
-                    SendResponse(api, message.PeerId.Value, userMessage.Text);
+                    SendResponse(api, message.PeerId!.Value, userMessage.Text);
                     return;
 
                 case "chaos":
                     L.M("Command 'Chaos' recognized.");
-                    HandleChaosCommand(api, message, groupId);
+                    HandleChaosCommand(api, message);
+                    return;
+
+                case "who":
+                    HandleWhoCommand(api, message);
                     return;
                 default:
                     /* Больше некуда это вставлять */
@@ -145,6 +131,7 @@ public partial class MessageHandler
         _saves.Save(SavesFilePath);
     }
 
+<<<<<<< HEAD
     private void SendResponse(VkApi api, long? peerId, string message)
     {
         try
@@ -167,6 +154,18 @@ public partial class MessageHandler
         catch (Exception ex)
         {
             L.E(ex);
+=======
+    private void SendResponse(VkApi api, long peerId, string message) {
+        try {
+            api.Messages.Send(new MessagesSendParams {
+                RandomId = _random.Next(),
+                PeerId = peerId,
+                Message = message
+            });
+            L.M($"Sent response: {message}");
+        } catch (Exception e) {
+            L.E(e);
+>>>>>>> origin/main
         }
     }
 
@@ -192,7 +191,11 @@ public partial class MessageHandler
         }
         catch (Exception ex)
         {
+<<<<<<< HEAD
             L.E(ex);
+=======
+            L.M("peerId is NULL");
+>>>>>>> origin/main
         }
     }
 
@@ -224,7 +227,7 @@ public partial class MessageHandler
                         foreach (var chat in _saves.Chats)
                         {
                             // Проверка, включены ли периодические сообщения для этого чата
-                            if (chat.Propertyes.IsMeme)
+                            if (chat.Properties.IsMeme)
                             {
                                 SendResponse(_vkApi, chat.PeerID, randomComment);
                             }

@@ -1,6 +1,7 @@
 ﻿using System.Text.Json;
 using System.Text.Json.Serialization;
 using vkbot_vitalya.Config;
+using vkbot_vitalya.Core;
 
 namespace vkbot_vitalya.Services;
 
@@ -19,45 +20,31 @@ public class WeatherService
             try
             {
                 string url = $"http://api.openweathermap.org/data/2.5/weather?q={cityName}&appid={_apiKey}&units=metric&lang=ru";
-                Console.WriteLine($"Requesting URL (Attempt {attempt + 1}): {url}"); // Logging the request URL
+                L.M($"Requesting URL (Attempt {attempt + 1}): {url}"); // Logging the request URL
 
                 HttpResponseMessage response = await _httpClient.GetAsync(url);
 
                 if (response.IsSuccessStatusCode)
                 {
                     string json = await response.Content.ReadAsStringAsync();
-                    Console.WriteLine($"Received JSON: {json}"); // Logging the JSON response
+                    L.D($"Received JSON: {json}");
 
                     var weatherResponse = JsonSerializer.Deserialize<WeatherResponse>(json);
                     return weatherResponse;
                 }
                 else
                 {
-                    Console.WriteLine($"Response Status Code: {response.StatusCode}"); // Logging the status code
+                    L.M($"Response Status Code: {response.StatusCode}"); // Logging the status code
                     string errorContent = await response.Content.ReadAsStringAsync();
-                    Console.WriteLine($"Error Content: {errorContent}"); // Logging the error content
+                    L.M($"Error Content: {errorContent}"); // Logging the error content
                 }
-            }
-            catch (HttpRequestException e)
-            {
-                Console.WriteLine("\nHttpRequestException Caught!");
-                Console.WriteLine("Message :{0} ", e.Message);
-                Console.WriteLine("Inner Exception: {0}", e.InnerException?.Message ?? "No inner exception");
-            }
-            catch (TaskCanceledException e)
-            {
-                Console.WriteLine("\nTaskCanceledException Caught! This could be due to a timeout.");
-                Console.WriteLine("Message :{0} ", e.Message);
-                Console.WriteLine("Inner Exception: {0}", e.InnerException?.Message ?? "No inner exception");
             }
             catch (Exception e)
             {
-                Console.WriteLine("\nException Caught!");
-                Console.WriteLine("Message :{0} ", e.Message);
-                Console.WriteLine("Inner Exception: {0}", e.InnerException?.Message ?? "No inner exception");
+                L.E(e);
             }
 
-            Console.WriteLine($"Retrying in {delayMilliseconds / 1000} seconds...");
+            L.M($"Retrying in {delayMilliseconds / 1000} seconds...");
             await Task.Delay(delayMilliseconds);
         }
 

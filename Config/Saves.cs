@@ -32,7 +32,7 @@ public class Saves
     {
         if (!Chats.Any(chat => chat.PeerID == peerId))
         {
-            Chats.ToList().Add(new Chat(peerId, new ChatPropertyes(), new List<User>()));
+            Chats.ToList().Add(new Chat(peerId, new ChatProperties(), new List<User>()));
         }
     }
 
@@ -48,10 +48,10 @@ public class Saves
 
 public class Chat
 {
-    public Chat(long peerID, ChatPropertyes propertyes = null, List<User> users = null)
+    public Chat(long peerID, ChatProperties properties = null, List<User> users = null)
     {
         PeerID = peerID;
-        Propertyes = propertyes ?? new ChatPropertyes();
+        Properties = properties ?? new ChatProperties();
         Users = users ?? new List<User>();
     }
 
@@ -59,13 +59,13 @@ public class Chat
     public long PeerID { get; set; }
 
     [JsonPropertyName("property")]
-    public ChatPropertyes Propertyes { get; set; }
+    public ChatProperties Properties { get; set; }
 
     [JsonPropertyName("users")]
     public List<User> Users { get; set; }
 }
 
-public class ChatPropertyes
+public class ChatProperties
 {
     [JsonPropertyName("anime")]
     public bool IsAnime { get; set; } = true;
@@ -85,7 +85,7 @@ public class ChatPropertyes
     [JsonPropertyName("location")]
     public bool IsLocation { get; set; } = true;
 
-    public ChatPropertyes() { }
+    public ChatProperties() { }
 }
 
 public record class User(long UserID)

@@ -3,7 +3,6 @@ using Newtonsoft.Json;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Formats.Jpeg;
 using SixLabors.ImageSharp.PixelFormats;
-using System.Net;
 using System.Text;
 using vkbot_vitalya.Config;
 using vkbot_vitalya.Services;
@@ -79,8 +78,8 @@ public partial class MessageHandler
                 return;
             }
 
-            var photos = await UploadImageToVk(api, processedImage, groupId);
-            if (photos == null) {
+            var photo = await UploadImageToVk(api, processedImage, groupId);
+            if (photo == null) {
                 return;
             }
 
@@ -89,7 +88,7 @@ public partial class MessageHandler
                 RandomId = _random.Next(),
                 PeerId = message.PeerId.Value,
                 ReplyTo = message.Id,
-                Attachments = photos
+                Attachments = photo
             });
 
             L.M("Processed photo sent to user.");
@@ -99,7 +98,7 @@ public partial class MessageHandler
         }
     }
 
-    /// Jpeg only
+    /// Upload new image to VK
     public static async Task<ReadOnlyCollection<Photo>?> UploadImageToVk(VkApi api, Image image, ulong groupId) {
         var sw = new Stopwatch();
         sw.Start();
@@ -128,7 +127,7 @@ public partial class MessageHandler
         var responseString = await response.Content.ReadAsStringAsync();
         var photos = api.Photo.SaveMessagesPhoto(responseString);
         sw.Stop();
-        L.M($"Photo uploaded to VK. It took {sw.ElapsedMilliseconds} ms.");
+        L.M($"Photo uploaded to VK in {sw.ElapsedMilliseconds} ms");
         return photos;
     }
 
@@ -151,22 +150,12 @@ public partial class MessageHandler
             string memeUrl = meme.Url;
             L.M($"Found meme URL: {memeUrl}");
 
-            // Get the server for uploading photos
-            var uploadServer = api.Photo.GetMessagesUploadServer((long)groupId).UploadUrl;
-            L.M($"Upload URL: {uploadServer}");
-
             try
             {
-                // Download meme image
-                using var httpClient = new HttpClient();
-                var response = await httpClient.GetAsync(memeUrl);
-                response.EnsureSuccessStatusCode();
-                var imageBytes = await response.Content.ReadAsByteArrayAsync();
-                using var memoryStream = new MemoryStream(imageBytes);
-                using var image = Image.Load<Rgba32>(memoryStream);
-
-                var photos = await UploadImageToVk(api, image, groupId);
-                if (photos == null) return;
+                var photo = await CopyImageToVk(api, new HttpClient(), memeUrl, groupId);
+                if (photo == null) {
+                    return;
+                }
 
                 string text = await MessageProcessor.KeepUpConversation();
 
@@ -176,7 +165,7 @@ public partial class MessageHandler
                     RandomId = _random.Next(),
                     PeerId = message.PeerId.Value,
                     ReplyTo = message.Id,
-                    Attachments = photos,
+                    Attachments = photo,
                     Message = text
                 });
 
@@ -235,8 +224,6 @@ public partial class MessageHandler
         // Если теги не указаны, будут использоваться отрицательные теги по умолчанию
         L.M($"Requesting Danbooru with tags: {tags}");
 
-        Console.WriteLine(tags);
-
         var randomPost = await ServiceEndpoint.SafebooruApi.GetRandomPostAsync(tags);
 
         if (randomPost != null)
@@ -244,31 +231,10 @@ public partial class MessageHandler
             string imageUrl = randomPost.FileUrl;
             L.M($"Found image URL: {imageUrl}");
 
-            var uploadServer = api.Photo.GetMessagesUploadServer((long)groupId).UploadUrl;
-            L.M($"Upload URL: {uploadServer}");
-
             try
             {
-                using HttpResponseMessage response = await ServiceEndpoint.DanbooruApi.Client.GetAsync(imageUrl);
-                response.EnsureSuccessStatusCode();
-                using Stream inputStream = await response.Content.ReadAsStreamAsync();
-                using var memoryStream = new MemoryStream();
-                await inputStream.CopyToAsync(memoryStream);
-                byte[] imageBytes = memoryStream.ToArray();
-                string boundary = "----WebKitFormBoundary7MA4YWxkTrZu0gW";
-
-                using var formDataContent = new MultipartFormDataContent(boundary);
-                formDataContent.Headers.Remove("Content-Type");
-                formDataContent.Headers.TryAddWithoutValidation("Content-Type", "multipart/form-data; boundary=" + boundary);
-                var byteArrayContent = new ByteArrayContent(imageBytes);
-                byteArrayContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/octet-stream");
-                formDataContent.Add(byteArrayContent, "file1", "anime.jpg");
-
-                using HttpResponseMessage uploadResponse = await ServiceEndpoint.DanbooruApi.Client.PostAsync(uploadServer, formDataContent);
-                uploadResponse.EnsureSuccessStatusCode();
-                string responseString = await uploadResponse.Content.ReadAsStringAsync();
-                var savedPhotos = api.Photo.SaveMessagesPhoto(responseString);
-                L.M("Anime image uploaded to VK.");
+                var photo = await CopyImageToVk(api, ServiceEndpoint.DanbooruApi.Client, imageUrl, groupId);
+                if (photo == null) return;
 
                 List<string> variableLabel = new List<string>()
                 {
@@ -319,7 +285,7 @@ public partial class MessageHandler
                 {
                     RandomId = _random.Next(),
                     PeerId = message.PeerId.Value,
-                    Attachments = savedPhotos,
+                    Attachments = photo,
                     ReplyTo = message.Id,
                     Keyboard = keyboard
                 });
@@ -365,41 +331,17 @@ public partial class MessageHandler
         // Если теги не указаны, будут использоваться отрицательные теги по умолчанию
         L.M($"Requesting Danbooru with tags: {tags}");
 
-        Services.Post? randomPost = await ServiceEndpoint.DanbooruApi.RandomImageAsync(onForbriddenTag, tags);
+        var imageUrl = await ServiceEndpoint.DanbooruApi.RandomImageAsync(onForbriddenTag, tags);
 
         if (isForb)
             return;
 
-        if (randomPost != null)
+        if (imageUrl != null)
         {
-            string imageUrl = randomPost.FileUrl;
             L.M($"Found image URL: {imageUrl}");
 
-            var uploadServer = api.Photo.GetMessagesUploadServer((long)groupId).UploadUrl;
-            L.M($"Upload URL: {uploadServer}");
-
-            try
-            {
-                using HttpResponseMessage response = await ServiceEndpoint.DanbooruApi.Client.GetAsync(imageUrl);
-                response.EnsureSuccessStatusCode();
-                using Stream inputStream = await response.Content.ReadAsStreamAsync();
-                using var memoryStream = new MemoryStream();
-                await inputStream.CopyToAsync(memoryStream);
-                byte[] imageBytes = memoryStream.ToArray();
-                string boundary = "----WebKitFormBoundary7MA4YWxkTrZu0gW";
-
-                using var formDataContent = new MultipartFormDataContent(boundary);
-                formDataContent.Headers.Remove("Content-Type");
-                formDataContent.Headers.TryAddWithoutValidation("Content-Type", "multipart/form-data; boundary=" + boundary);
-                var byteArrayContent = new ByteArrayContent(imageBytes);
-                byteArrayContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/octet-stream");
-                formDataContent.Add(byteArrayContent, "file1", "h.jpg");
-
-                using HttpResponseMessage uploadResponse = await ServiceEndpoint.DanbooruApi.Client.PostAsync(uploadServer, formDataContent);
-                uploadResponse.EnsureSuccessStatusCode();
-                string responseString = await uploadResponse.Content.ReadAsStringAsync();
-                var savedPhotos = api.Photo.SaveMessagesPhoto(responseString);
-                L.M("Anime image uploaded to VK.");
+            try {
+                var photo = await CopyImageToVk(api, ServiceEndpoint.DanbooruApi.Client, imageUrl, groupId);
 
                 var b = new MessageKeyboardButton
                 {
@@ -425,7 +367,7 @@ public partial class MessageHandler
                 {
                     RandomId = _random.Next(),
                     PeerId = message.PeerId.Value,
-                    Attachments = savedPhotos,
+                    Attachments = photo,
                     ReplyTo = message.Id,
                     Keyboard = keyboard
                 });
@@ -442,6 +384,43 @@ public partial class MessageHandler
         {
             L.M("No anime image found.");
             SendResponse(api, message.PeerId.Value, "Извините, не удалось найти изображение аниме.");
+        }
+    }
+
+    /// Asynchronously upload image from URL
+    private async Task<ReadOnlyCollection<Photo>?> CopyImageToVk(VkApi api, HttpClient client, string imageUrl, ulong groupId) {
+        var sw = new Stopwatch();
+        sw.Start();
+        var uploadUrl = api.Photo.GetMessagesUploadServer((long)groupId).UploadUrl;
+
+        try {
+            using var response = await client.GetAsync(imageUrl, HttpCompletionOption.ResponseHeadersRead);
+            response.EnsureSuccessStatusCode();
+
+
+            await using var stream = await response.Content.ReadAsStreamAsync();
+            using var content = new MultipartFormDataContent();
+
+            var fileContent = new StreamContent(stream);
+            fileContent.Headers.ContentType = MediaTypeHeaderValue.Parse("image/jpeg");
+            content.Add(fileContent, "photo", "image.jpeg");
+
+            using var httpClient = new HttpClient();
+            var vkResponse = await httpClient.PostAsync(uploadUrl, content);
+            if (!vkResponse.IsSuccessStatusCode) {
+                L.W($"CopyImageToVk: VK returned {vkResponse.StatusCode} status code");
+                return null;
+            }
+
+            var responseString = await vkResponse.Content.ReadAsStringAsync();
+            var photo = api.Photo.SaveMessagesPhoto(responseString);
+            sw.Stop();
+            L.M($"Photo copied to VK in {sw.ElapsedMilliseconds} ms");
+            return photo;
+        } catch (Exception e) {
+            L.E($"Failed to download image from {imageUrl}");
+            L.E(e);
+            return null;
         }
     }
 
@@ -628,7 +607,7 @@ public partial class MessageHandler
         }
     }
 
-    private async void HandleChaosCommand(VkApi api, Message message, ulong groupId)
+    private async void HandleChaosCommand(VkApi api, Message message)
     {
         string commandText = message.Text.Trim();
         string[] commandParts = commandText.Split(new[] { ' ' }, 2); // "v chaos"
@@ -644,34 +623,33 @@ public partial class MessageHandler
         try
         {
             var members = await api.Messages.GetConversationMembersAsync(message.PeerId.Value);
-            var randomMember = members.Profiles.OrderBy(x => Guid.NewGuid()).First();
-            long victimId = randomMember.Id;
+            var victim = members.Profiles.OrderBy(x => Guid.NewGuid()).First();
 
             var randomMember2 = members.Profiles.OrderBy(x => Guid.NewGuid()).First();
 
-            string task = GenerateChaosTask($"[id{randomMember2.Id}|{randomMember2.FirstName} {randomMember2.LastName}]");
+            string task = GenerateChaosTask(Vk.PingUser(randomMember2));
 
             var buttons = new List<MessageKeyboardButton>
-        {
-            new MessageKeyboardButton
             {
-                Action = new MessageKeyboardButtonAction
+                new MessageKeyboardButton
                 {
-                    Type = VkNet.Enums.StringEnums.KeyboardButtonActionType.Text,
-                    Label = "Выполнено",
-                    Payload = JsonConvert.SerializeObject(new { command = "chaos_done", victim = victimId })
-                }
-            },
-            new MessageKeyboardButton
-            {
-                Action = new MessageKeyboardButtonAction
+                    Action = new MessageKeyboardButtonAction
+                    {
+                        Type = VkNet.Enums.StringEnums.KeyboardButtonActionType.Text,
+                        Label = "Выполнено",
+                        Payload = JsonConvert.SerializeObject(new { command = "chaos_done", victim = victim.Id })
+                    }
+                },
+                new MessageKeyboardButton
                 {
-                    Type = VkNet.Enums.StringEnums.KeyboardButtonActionType.Text,
-                    Label = "Провал",
-                    Payload = JsonConvert.SerializeObject(new { command = "chaos_fail", victim = victimId })
+                    Action = new MessageKeyboardButtonAction
+                    {
+                        Type = VkNet.Enums.StringEnums.KeyboardButtonActionType.Text,
+                        Label = "Провал",
+                        Payload = JsonConvert.SerializeObject(new { command = "chaos_fail", victim = victim.Id })
+                    }
                 }
-            }
-        };
+            };
 
             var keyboard = new MessageKeyboard
             {
@@ -683,11 +661,11 @@ public partial class MessageHandler
             {
                 RandomId = new Random().Next(),
                 PeerId = message.PeerId.Value,
-                Message = $"🔥 Хаос начинается! Жертва: [id{victimId}|{randomMember.FirstName} {randomMember.LastName}]\nЗадание: {task}\nГолосуйте!",
+                Message = $"🔥 Хаос начинается! Жертва: {Vk.PingUser(victim)}\nЗадание: {task}\nГолосуйте!",
                 Keyboard = keyboard
             });
 
-            L.M($"Chaos task assigned to {randomMember.FirstName}: {task}");
+            L.M($"Chaos task assigned to {victim.FirstName}: {task}");
         }
         catch (Exception ex)
         {
@@ -700,47 +678,47 @@ public partial class MessageHandler
     {
         Random random = new Random();
         string[] actions = {
-        $"выебать {name}",
-        $"трахнуть {name}",
-        $"написать выебан на жопе {name}",
-        $"пойти нахуй",
-        $"сделать KYS",
-        $"спонсировать побег в лес",
-        $"выебать {name} в жопу с разбега",
-        $"трахнуть {name} до потери пульса",
-        $"засунуть {name} голову в унитаз и смыть",
-        $"сломать {name} нос об стену",
-        $"выбить {name} зубы кувалдой",
-        $"раздавить {name} яйца прессом",
-        $"заставить {name} спорить с зеркалом до слез",
-        $"сказать {name}, что голоса в голове хотят пиццу",
-        $"заставить {name} танцевать с воображаемой бабкой",
-        $"написать на лбу {name} \"шиза внутри\" и отправить в магазин",
-        $"убедить {name}, что его кот — агент ФСБ",
-        $"заставить {name} шептать \"я нормальный\" в подушку всю ночь",
-        $"подарить {name} пустую коробку как \"лекарство от голосов\"",
-        $"сказать {name}, что его тень хочет его задушить",
-        $"заставить {name} искать Wi-Fi в лесу от деревьев",
-        $"убедить {name}, что он застрял в симуляции без выхода",
-        $"заставить {name} петь колыбельную своему отражению",
-        $"сказать {name}, что его мозг сбежал через уши",
-        $"заставить {name} обнимать мусорку и называть ее мамой",
-        $"убедить {name}, что дождь — это слезы его второго я",
-        $"заставить {name} искать свою душу в унитазе",
-        $"сказать {name}, что он умер, но не заметил",
-        $"заставить {name} писать письма своему выдуманному другу в стену",
-        $"убедить {name}, что он — картошка в прошлой жизни",
-        $"заставить {name} кричать \"где мой разум\" в пустую комнату",
-        $"сказать {name}, что его ноги — шпионы и следят за ним",
-        $"заставить {name} рисовать круги и шептать \"это мой дом\"",
-        $"убедить {name}, что лампа в комнате — его босс",
-        $"заставить {name} носить носок на руке как вторую личность",
-        $"сказать {name}, что его голоса в голове устраивают забастовку",
-        $"заставить {name} искать таблетки в миске с макаронами",
-        $"убедить {name}, что он видит мир в инверсии",
-        $"заставить {name} гладить воздух и называть его псом"
+            $"выебать {name}",
+            $"трахнуть {name}",
+            $"написать выебан на жопе {name}",
+            $"пойти нахуй",
+            $"сделать KYS",
+            $"спонсировать побег в лес",
+            $"выебать {name} в жопу с разбега",
+            $"трахнуть {name} до потери пульса",
+            $"засунуть {name} голову в унитаз и смыть",
+            $"сломать {name} нос об стену",
+            $"выбить {name} зубы кувалдой",
+            $"раздавить {name} яйца прессом",
+            $"заставить {name} спорить с зеркалом до слез",
+            $"сказать {name}, что голоса в голове хотят пиццу",
+            $"заставить {name} танцевать с воображаемой бабкой",
+            $"написать на лбу {name} \"шиза внутри\" и отправить в магазин",
+            $"убедить {name}, что его кот — агент ФСБ",
+            $"заставить {name} шептать \"я нормальный\" в подушку всю ночь",
+            $"подарить {name} пустую коробку как \"лекарство от голосов\"",
+            $"сказать {name}, что его тень хочет его задушить",
+            $"заставить {name} искать Wi-Fi в лесу от деревьев",
+            $"убедить {name}, что он застрял в симуляции без выхода",
+            $"заставить {name} петь колыбельную своему отражению",
+            $"сказать {name}, что его мозг сбежал через уши",
+            $"заставить {name} обнимать мусорку и называть ее мамой",
+            $"убедить {name}, что дождь — это слезы его второго я",
+            $"заставить {name} искать свою душу в унитазе",
+            $"сказать {name}, что он умер, но не заметил",
+            $"заставить {name} писать письма своему выдуманному другу в стену",
+            $"убедить {name}, что он — картошка в прошлой жизни",
+            $"заставить {name} кричать \"где мой разум\" в пустую комнату",
+            $"сказать {name}, что его ноги — шпионы и следят за ним",
+            $"заставить {name} рисовать круги и шептать \"это мой дом\"",
+            $"убедить {name}, что лампа в комнате — его босс",
+            $"заставить {name} носить носок на руке как вторую личность",
+            $"сказать {name}, что его голоса в голове устраивают забастовку",
+            $"заставить {name} искать таблетки в миске с макаронами",
+            $"убедить {name}, что он видит мир в инверсии",
+            $"заставить {name} гладить воздух и называть его псом"
 
-    };
+        };
         return actions[random.Next(actions.Length)];
     }
 
@@ -755,18 +733,18 @@ public partial class MessageHandler
             return;
         }
 
-        if (chat.Propertyes == null)
+        if (chat.Properties == null)
         {
-            chat.Propertyes = new ChatPropertyes();
+            chat.Properties = new ChatProperties();
             _saves.Save(SavesFilePath);
         }
 
-        var b1 = CreateToggleButton(chat.Propertyes.IsAnime, "anime", "Аниме");
-        var b2 = CreateToggleButton(chat.Propertyes.IsHentai, "hentai", "Хентай");
-        var b3 = CreateToggleButton(chat.Propertyes.IsImageProccestion, "image_processing", "Обработка изображений");
-        var b4 = CreateToggleButton(chat.Propertyes.IsMeme, "meme", "Мемы");
-        var b5 = CreateToggleButton(chat.Propertyes.IsWeather, "weather", "Погода");
-        var b6 = CreateToggleButton(chat.Propertyes.IsLocation, "location", "Местоположение");
+        var b1 = CreateToggleButton(chat.Properties.IsAnime, "anime", "Аниме");
+        var b2 = CreateToggleButton(chat.Properties.IsHentai, "hentai", "Хентай");
+        var b3 = CreateToggleButton(chat.Properties.IsImageProccestion, "image_processing", "Обработка изображений");
+        var b4 = CreateToggleButton(chat.Properties.IsMeme, "meme", "Мемы");
+        var b5 = CreateToggleButton(chat.Properties.IsWeather, "weather", "Погода");
+        var b6 = CreateToggleButton(chat.Properties.IsLocation, "location", "Местоположение");
 
         List<MessageKeyboardButton> buttonsRow1 = new List<MessageKeyboardButton> { b1, b2, b3 };
         List<MessageKeyboardButton> buttonsRow2 = new List<MessageKeyboardButton> { b4, b5, b6 };
@@ -813,7 +791,7 @@ public partial class MessageHandler
         }
         catch (VkNet.Exception.ConversationAccessDeniedException ex)
         {
-            Console.WriteLine($"Access denied to chat {chatId}: {ex.Message}");
+            L.M($"Access denied to chat {chatId}: {ex.Message}");
             return false;
         }
     }
@@ -866,31 +844,31 @@ public partial class MessageHandler
                 return;
             }
 
-            if (chat.Propertyes == null)
+            if (chat.Properties == null)
             {
-                chat.Propertyes = new ChatPropertyes();
+                chat.Properties = new ChatProperties();
                 _saves.Save(SavesFilePath);
             }
 
             switch (command)
             {
                 case "toggle_anime":
-                    chat.Propertyes.IsAnime = !chat.Propertyes.IsAnime;
+                    chat.Properties.IsAnime = !chat.Properties.IsAnime;
                     break;
                 case "toggle_hentai":
-                    chat.Propertyes.IsHentai = !chat.Propertyes.IsHentai;
+                    chat.Properties.IsHentai = !chat.Properties.IsHentai;
                     break;
                 case "toggle_image_processing":
-                    chat.Propertyes.IsImageProccestion = !chat.Propertyes.IsImageProccestion;
+                    chat.Properties.IsImageProccestion = !chat.Properties.IsImageProccestion;
                     break;
                 case "toggle_meme":
-                    chat.Propertyes.IsMeme = !chat.Propertyes.IsMeme;
+                    chat.Properties.IsMeme = !chat.Properties.IsMeme;
                     break;
                 case "toggle_weather":
-                    chat.Propertyes.IsWeather = !chat.Propertyes.IsWeather;
+                    chat.Properties.IsWeather = !chat.Properties.IsWeather;
                     break;
                 case "toggle_location":
-                    chat.Propertyes.IsLocation = !chat.Propertyes.IsLocation;
+                    chat.Properties.IsLocation = !chat.Properties.IsLocation;
                     break;
 
                 default:
@@ -900,30 +878,25 @@ public partial class MessageHandler
 
             _saves.Save(SavesFilePath);
 
-            SendResponse(api, message.PeerId.Value, "Настройки обновлены.");
+            SendResponse(api, message.PeerId!.Value, "Настройки обновлены.");
 
             // Отправляем обновленную клавиатуру
             HandleSettingsCommand(api, message, (ulong)chatId);
         }
     }
     #endregion
+
+    private void HandleWhoCommand(VkApi api, Message message) {
+        var users = api.Messages.GetConversationMembers(message.PeerId!.Value).Profiles;
+        var answerUser = users[_random.Next(users.Count)];
+        SendResponse(api, message.PeerId!.Value, $"По-моему, это {Vk.PingUser(answerUser)}");
+    }
 }
 
 public static class MessagesExtensions
 {
     public static void Out(this Message message)
     {
-        string isReply = message.ReplyMessage != null ? $"Reply from userID: {message.ReplyMessage.FromId}" : "Is not reply";
-
-        string formatted = $"from: {message.FromId}, mId:{message.Id} : {message.Date}";
-
-        //200000000 для бесед
-        if (message.PeerId.ToString().StartsWith("200000000"))
-            Console.ForegroundColor = ConsoleColor.Red;
-        else
-            Console.ForegroundColor = ConsoleColor.Green;
-
-        Console.WriteLine(formatted);
-        Console.ForegroundColor = ConsoleColor.White;
+        L.M($"New message in chat {message.PeerId} from {message.FromId} (id: {message.Id})");
     }
 }

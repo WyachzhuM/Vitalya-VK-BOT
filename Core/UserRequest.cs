@@ -77,7 +77,7 @@ public class UserRequest
             }
         }
 
-        Console.WriteLine(this);
+        L.M(this);
     }
 
     public void Init()
@@ -139,7 +139,10 @@ public class UserRequest
             sb.Append($", Keywords: '{Keywords}'");
         }
 
-        sb.Append($", BotNameUsed: '{BotNameUsed}'");
+        if (BotNameUsed != null) {
+            sb.Append($", BotNameUsed: '{BotNameUsed}'");
+        }
+
         if (Payload is { Length: > 0 }) {
             sb.Append($"\nPayload:\n{Payload}");
         }

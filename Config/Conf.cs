@@ -5,6 +5,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading.Tasks;
+using vkbot_vitalya.Core;
 
 namespace vkbot_vitalya.Config;
 
@@ -18,7 +19,7 @@ public class Conf
         AdditionalData = additionalData;
     }
 
-    public static Conf? Instance { get; private set; }
+    public static Conf Instance { get; private set; }
 
     [JsonPropertyName("bot_names")]
     public List<string> BotNames { get; set; }
@@ -38,11 +39,15 @@ public class Conf
         {
             DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
         };
-    
-        var result = JsonSerializer.Deserialize<Conf>(json, jsonSerializerOptions);
+        Conf? result;
+        try {
+            result = JsonSerializer.Deserialize<Conf>(json, jsonSerializerOptions);
+        } catch (Exception e) {
+            L.F("Config file is invalid", e);
+            return null;
+        }
 
-        Instance = result;
-
+        Instance = result ?? throw new Exception("Invalid config file");
         return result;
     }
 }

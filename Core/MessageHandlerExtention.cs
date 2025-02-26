@@ -661,7 +661,7 @@ public partial class MessageHandler
             {
                 RandomId = new Random().Next(),
                 PeerId = message.PeerId.Value,
-                Message = $"🔥 Хаос начинается! Жертва: {Vk.PingUser(victim)}\nЗадание: {task}\nГолосуйте!",
+                Message = $"🔥 Хаос начинается! Жертва: {victim.PingUser()}\nЗадание: {task}\nГолосуйте!",
                 Keyboard = keyboard
             });
 
@@ -889,7 +889,7 @@ public partial class MessageHandler
     private void HandleWhoCommand(VkApi api, Message message) {
         var users = api.Messages.GetConversationMembers(message.PeerId!.Value).Profiles;
         var answerUser = users[_random.Next(users.Count)];
-        SendResponse(api, message.PeerId!.Value, $"По-моему, это {Vk.PingUser(answerUser)}");
+        SendResponse(api, message.PeerId!.Value, $"По-моему, это {answerUser.PingUser()}");
     }
 }
 

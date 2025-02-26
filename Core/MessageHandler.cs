@@ -131,7 +131,6 @@ public partial class MessageHandler
         _saves.Save(SavesFilePath);
     }
 
-<<<<<<< HEAD
     private void SendResponse(VkApi api, long? peerId, string message)
     {
         try
@@ -154,18 +153,6 @@ public partial class MessageHandler
         catch (Exception ex)
         {
             L.E(ex);
-=======
-    private void SendResponse(VkApi api, long peerId, string message) {
-        try {
-            api.Messages.Send(new MessagesSendParams {
-                RandomId = _random.Next(),
-                PeerId = peerId,
-                Message = message
-            });
-            L.M($"Sent response: {message}");
-        } catch (Exception e) {
-            L.E(e);
->>>>>>> origin/main
         }
     }
 
@@ -191,11 +178,7 @@ public partial class MessageHandler
         }
         catch (Exception ex)
         {
-<<<<<<< HEAD
             L.E(ex);
-=======
-            L.M("peerId is NULL");
->>>>>>> origin/main
         }
     }
 

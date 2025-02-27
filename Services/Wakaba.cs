@@ -12,6 +12,7 @@ public class Wakaba
         Wakaba2ChApiClient = handler != null ? Wakaba2ChApiClient = new Wakaba2ChApi(new HttpClient(handler)) :
             Wakaba2ChApiClient = new Wakaba2ChApi(new HttpClient());
     }
+    
 
     private Wakaba2ChApi Wakaba2ChApiClient { get; set; }
 

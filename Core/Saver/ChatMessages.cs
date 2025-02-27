@@ -59,11 +59,8 @@ public class ChatMessages
     public static implicit operator bool(ChatMessages? exists) => exists != null;
 
     #region Save Block
-    public static string GetFileName(string? peerId)
-    {
-        if (peerId != null)
-            return $"Chat{peerId}.json";
-        else return $"Chat_default.json";
+    public static string GetFileName(string peerId) {
+        return $"Chat{peerId}.json";
     }
 
     public static async Task<ChatMessages> Deserialize(string fullpath)
@@ -74,7 +71,7 @@ public class ChatMessages
             return new ChatMessages();
         }
 
-        string content = await File.ReadAllTextAsync(fullpath);
+        var content = await File.ReadAllTextAsync(fullpath);
 
         var result = JsonSerializer.Deserialize<ChatMessages>(content);
 
@@ -96,14 +93,14 @@ public class ChatMessages
             return;
         }
 
-        string fullpath = Path.Combine(filePath, GetFileName(message.PeerId.ToString()));
+        var fullpath = Path.Combine(filePath, GetFileName(message.PeerId.ToString()));
         L.D($"{nameof(ChatMessages)}: Trying to read file from {fullpath}");
 
         var chatMessages = await Deserialize(fullpath);
 
         L.D($"{nameof(ChatMessages)}: Deserialized chatMessages successfully");
 
-        ChatMessage message1 = new ChatMessage(message.FromId, message.Text, message.Date, message.ConversationMessageId);
+        var message1 = new ChatMessage(message.FromId, message.Text, message.Date, message.ConversationMessageId);
 
         if (chatMessages.Messages.Count >= MAX_MESSAGES)
         {
@@ -114,7 +111,7 @@ public class ChatMessages
 
         try
         {
-            string json = JsonSerializer.Serialize(chatMessages, new JsonSerializerOptions { WriteIndented = true });
+            var json = JsonSerializer.Serialize(chatMessages, new JsonSerializerOptions { WriteIndented = true });
             await File.WriteAllTextAsync(fullpath, json);
             L.D($"{nameof(ChatMessages)}: Updated and wrote to file successfully");
         }
@@ -124,33 +121,27 @@ public class ChatMessages
         }
     }
 
-    public async Task Save(string filePath, Message? message)
+    public async Task Save(string filePath, Message message)
     {
-        if (message?.PeerId == null)
-        {
-            L.M($"{nameof(ChatMessages)}: message?.PeerId is NULL");
-            return;
-        }
+        var message1 = new ChatMessage(message.FromId, message.Text, message.Date, message.ConversationMessageId);
 
-        ChatMessage message1 = new ChatMessage(message.FromId, message.Text, message.Date, message.ConversationMessageId);
-
-        ChatMessages cm = new ChatMessages(message.PeerId, new List<ChatMessage>() { message1 });
+        var cm = new ChatMessages(message.PeerId, new List<ChatMessage>() { message1 });
 
         await Save(filePath, cm);
     }
 
     private async Task Save(string filePath, ChatMessages chat)
     {
-        string json = JsonSerializer.Serialize(chat, new JsonSerializerOptions { WriteIndented = true });
+        var json = JsonSerializer.Serialize(chat, new JsonSerializerOptions { WriteIndented = true });
         await File.WriteAllTextAsync(Path.Combine(filePath, GetFileName(chat.PeerID.ToString())), json);
     }
     #endregion
 
     public static async Task<List<ChatMessage>> GetMessagesFromUser(long? peerId, long? fromId)
     {
-        string fullpath = Path.Combine(Program._savedMessagesFolder, GetFileName(peerId.ToString()));
+        var fullpath = Path.Combine(Program._savedMessagesFolder, GetFileName(peerId.ToString()));
 
-        ChatMessages chatmessages = await Deserialize(fullpath);
+        var chatmessages = await Deserialize(fullpath);
 
         if (chatmessages.Messages.Count != 0)
             return chatmessages.Messages.FindAll(x => x.FromId == fromId);
@@ -167,9 +158,9 @@ public class ChatMessages
 
     public static async Task<List<ChatMessage>> GetMessages(long? peerId)
     {
-        string fullpath = Path.Combine(Program._savedMessagesFolder, GetFileName(peerId.ToString()));
+        var fullpath = Path.Combine(Program._savedMessagesFolder, GetFileName(peerId.ToString()));
 
-        ChatMessages chatmessages = await Deserialize(fullpath);
+        var chatmessages = await Deserialize(fullpath);
 
         if (chatmessages.Messages.Count != 0)
             return chatmessages.Messages;

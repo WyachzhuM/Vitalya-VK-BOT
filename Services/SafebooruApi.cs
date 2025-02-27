@@ -24,9 +24,9 @@ public class SafebooruApi
         "enema", "execution", "hazbin_hotel", "helluva_boss", "loona"
     };
 
-    public SafebooruApi(Authentication auth)
+    public SafebooruApi()
     {
-        Client = ProxyClient.GetProxyHttpClient(auth.ProxyAdress, new NetworkCredential(auth.ProxyLogin, auth.ProxyPassword), "vk-bot-vitalya");
+        Client = ProxyClient.GetProxyHttpClient(Auth.Instance.ProxyAdress, new NetworkCredential(Auth.Instance.ProxyLogin, Auth.Instance.ProxyPassword), "vk-bot-vitalya");
     }
 
     private HttpClient Client { get; set; }
@@ -37,28 +37,28 @@ public class SafebooruApi
         if (cache.ContainsKey(tags) && cache[tags].Count > 0)
         {
             var cachedPosts = cache[tags];
-            Random random = new Random();
-            int randomIndex = random.Next(cachedPosts.Count);
+            var random = new Random();
+            var randomIndex = random.Next(cachedPosts.Count);
             return cachedPosts[randomIndex];
         }
 
-        int postCount = 5;//await GetPostCountAsync(tags);
+        var postCount = 5;//await GetPostCountAsync(tags);
         if (postCount == 0)
         {
-            L.M("No posts found.");
+            L.I("No posts found.");
             return null;
         }
 
-        Random rnd = new Random();
-        string incTags = tags.Replace(",", " ");
-        int randomPage = rnd.Next(0, (postCount - 1) / 200 + 1);
+        var rnd = new Random();
+        var incTags = tags.Replace(",", " ");
+        var randomPage = rnd.Next(0, (postCount - 1) / 200 + 1);
 
-        if (forbiddenTags.Contains(incTags))
+        if (forbiddenTags.Contains(incTags) && !Program.IgnoreTagsBlacklist)
         {
             return null;
         }
 
-        string url = BASE_URL + $"index.php?page=dapi&s=post&q=index&limit=200&json=1&pid={randomPage}&tags={incTags}";
+        var url = BASE_URL + $"index.php?page=dapi&s=post&q=index&limit=200&json=1&pid={randomPage}&tags={incTags}";
 
         // Задержка перед выполнением запроса
         await Task.Delay(1000);
@@ -66,15 +66,15 @@ public class SafebooruApi
         try {
             response = await Client.GetAsync(url);
         } catch (HttpRequestException e) {
-            L.E(e);
+            L.E("", e);
             return null;
         }
 
-        L.M($"Response Status Code: {response.StatusCode}");
+        L.I($"Response Status Code: {response.StatusCode}");
 
         if (response.IsSuccessStatusCode)
         {
-            string responseBody = await response.Content.ReadAsStringAsync();
+            var responseBody = await response.Content.ReadAsStringAsync();
 
             if (!string.IsNullOrWhiteSpace(responseBody) && !responseBody.Contains("search error"))  // Improved check for search error
             {
@@ -85,30 +85,30 @@ public class SafebooruApi
                     if (posts != null && posts.Count > 0)
                     {
                         cache[tags] = posts; // Кэшируем результаты
-                        L.M($"Posts found: {posts.Count}");
+                        L.I($"Posts found: {posts.Count}");
 
-                        int randomIndex = rnd.Next(posts.Count);
+                        var randomIndex = rnd.Next(posts.Count);
                         return posts[randomIndex];
                     }
                     else
                     {
-                        L.M("No posts found.");
+                        L.I("No posts found.");
                     }
                 }
                 catch (JsonException jsonEx)
                 {
-                    L.M($"JSON deserialization error: {jsonEx.Message}");
+                    L.I($"JSON deserialization error: {jsonEx.Message}");
                 }
             }
             else
             {
-                L.M("Search error detected or response body is empty.");
+                L.I("Search error detected or response body is empty.");
             }
         }
         else
         {
-            string errorContent = await response.Content.ReadAsStringAsync();
-            L.M($"Error Content: {errorContent}");
+            var errorContent = await response.Content.ReadAsStringAsync();
+            L.I($"Error Content: {errorContent}");
         }
 
         return null;
@@ -116,8 +116,8 @@ public class SafebooruApi
 
     public async Task<int> GetPostCountAsync(string tags)
     {
-        string incTags = tags.Replace(",", " ");
-        string url = BASE_URL + $"index.php?page=dapi&s=post&q=index&limit=1&json=1&tags={incTags}";
+        var incTags = tags.Replace(",", " ");
+        var url = BASE_URL + $"index.php?page=dapi&s=post&q=index&limit=1&json=1&tags={incTags}";
 
         // Задержка перед выполнением запроса
         await Task.Delay(1000);
@@ -125,13 +125,13 @@ public class SafebooruApi
         try {
             response = await Client.GetAsync(url);
         } catch (HttpRequestException e) {
-            L.E(e);
+            L.E("", e);
             return 0;
         }
 
         if (response.IsSuccessStatusCode)
         {
-            string responseBody = await response.Content.ReadAsStringAsync();
+            var responseBody = await response.Content.ReadAsStringAsync();
             var posts = JsonSerializer.Deserialize<List<SafebooruPost>>(responseBody);
             if (posts != null && posts.Count > 0)
             {

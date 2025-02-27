@@ -12,21 +12,21 @@ public class WeatherService
 
     public async Task<WeatherResponse?> GetWeatherAsync(string cityName)
     {
-        int maxRetries = 3;
-        int delayMilliseconds = 2000; // Задержка между повторами
+        var maxRetries = 3;
+        var delayMilliseconds = 2000; // Задержка между повторами
 
-        for (int attempt = 0; attempt < maxRetries; attempt++)
+        for (var attempt = 0; attempt < maxRetries; attempt++)
         {
             try
             {
-                string url = $"http://api.openweathermap.org/data/2.5/weather?q={cityName}&appid={_apiKey}&units=metric&lang=ru";
-                L.M($"Requesting URL (Attempt {attempt + 1}): {url}"); // Logging the request URL
+                var url = $"http://api.openweathermap.org/data/2.5/weather?q={cityName}&appid={_apiKey}&units=metric&lang=ru";
+                L.I($"Requesting URL (Attempt {attempt + 1}): {url}"); // Logging the request URL
 
-                HttpResponseMessage response = await _httpClient.GetAsync(url);
+                var response = await _httpClient.GetAsync(url);
 
                 if (response.IsSuccessStatusCode)
                 {
-                    string json = await response.Content.ReadAsStringAsync();
+                    var json = await response.Content.ReadAsStringAsync();
                     L.D($"Received JSON: {json}");
 
                     var weatherResponse = JsonSerializer.Deserialize<WeatherResponse>(json);
@@ -34,24 +34,24 @@ public class WeatherService
                 }
                 else
                 {
-                    L.M($"Response Status Code: {response.StatusCode}"); // Logging the status code
-                    string errorContent = await response.Content.ReadAsStringAsync();
-                    L.M($"Error Content: {errorContent}"); // Logging the error content
+                    L.I($"Response Status Code: {response.StatusCode}"); // Logging the status code
+                    var errorContent = await response.Content.ReadAsStringAsync();
+                    L.I($"Error Content: {errorContent}"); // Logging the error content
                 }
             }
             catch (Exception e)
             {
-                L.E(e);
+                L.E("", e);
             }
 
-            L.M($"Retrying in {delayMilliseconds / 1000} seconds...");
+            L.I($"Retrying in {delayMilliseconds / 1000} seconds...");
             await Task.Delay(delayMilliseconds);
         }
 
         return null;
     }
 
-    public WeatherService(Authentication auth)
+    public WeatherService()
     {
         var handler = new HttpClientHandler
         {
@@ -62,7 +62,7 @@ public class WeatherService
         {
             Timeout = TimeSpan.FromSeconds(10) // Set a timeout period
         };
-        _apiKey = auth.WeatherApiKey;
+        _apiKey = Auth.Instance.WeatherApiKey;
     }
 }
 

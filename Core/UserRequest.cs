@@ -1,14 +1,13 @@
 ﻿using System.Text;
+using System.Text.RegularExpressions;
 using vkbot_vitalya.Config;
 using vkbot_vitalya.Core;
 using VkNet.Model;
 
 namespace vkbot_vitalya;
 
-public class Cmd
-{
-    public Cmd(string commandName, string args)
-    {
+public class Cmd {
+    public Cmd(string commandName, string args) {
         CommandName = commandName;
         Args = args;
     }
@@ -17,88 +16,54 @@ public class Cmd
     public string Args { get; set; }
 }
 
-/// <summary>
-/// Класс представления сообщения пользователя
-/// </summary>
-public class UserRequest
-{
+public class UserRequest {
     public Action<Message>? onSimpleText;
     public Action<Cmd>? onCommand;
     public Action<string>? onPayload;
 
-    private Random random = new Random();
-
-    public UserRequest(Message message, Conf config)
-    {
-        ID = random.Next(int.MaxValue);
-        Config = config;
-
+    public UserRequest(Message message) {
         Message = message;
-        Text = Message.Text.ToLower().Trim();
-
+        Text = Regex.Replace(Message.Text, @"\s+", " ").Trim();
         Payload = Message.Payload ?? null;
 
-        foreach (string name in Config.BotNames)
-        {
-            if (Text.StartsWith(name))
-            {
+        foreach (var name in Conf.Instance.BotNames) {
+            if (Text.StartsWith(name)) {
                 BotNameUsed = name;
                 break;
             }
         }
 
-        if (BotNameUsed != null)
-        {
-            foreach (var cmd in config.Commands)
-            {
-                foreach (var value in cmd.Value)
-                {
-                    if (Text.Replace(BotNameUsed, string.Empty).Trim().StartsWith(value))
-                    {
-                        ActualCommand = value;
-                        Command = cmd.Key;
+        if (BotNameUsed != null) {
+            string request;
+            try {
+                request = Text.Substring(BotNameUsed.Length + 1);
+            } catch (ArgumentOutOfRangeException) {
+                goto end;
+            }
+
+            foreach (var command in Conf.Instance.Commands) {
+                foreach (var alias in command.Value) {
+                    if (request.StartsWith(alias)) {
+                        Alias = alias;
+                        Command = command.Key;
                         break;
                     }
                 }
             }
 
-            if (ActualCommand != null)
-            {
-                int commandStartIndex = BotNameUsed.Length + ActualCommand.Length + 2;
-
-                if (commandStartIndex <= Text.Length)
-                {
-                    Keywords = Text.Substring(commandStartIndex).Trim();
-                }
-                else
-                {
-                    Keywords = string.Empty; // или null
+            if (Command != null) {
+                try {
+                    Keywords = request.Substring(Alias!.Length + 1);
+                    Args = Keywords.Split(' ');
+                } catch (ArgumentOutOfRangeException) {
+                    Keywords = string.Empty;
+                    Args = [];
                 }
             }
         }
 
-        L.M(this);
-    }
-
-    public void Init()
-    {
-        if (Payload != null)
-        {
-            L.M("onPayload?.Invoke");
-            onPayload?.Invoke(Payload);
-        }
-        else if (BotNameUsed != null && ActualCommand != null)
-        {
-            L.M($"Invoke({Command}, {Keywords})");
-
-            if(Command != null && Keywords != null)
-                onCommand?.Invoke(new Cmd(Command, Keywords));
-        }
-        else
-        {
-            L.M("onSimpleText?.Invoke");
-            onSimpleText?.Invoke(Message);
-        }
+        end:
+        L.I(this);
     }
 
     public Message Message { get; private set; }
@@ -113,26 +78,21 @@ public class UserRequest
     /// <summary>
     /// From message
     /// </summary>
-    public string? ActualCommand { get; set; }
+    public string? Alias { get; set; }
 
     public string? Keywords { get; set; }
-
+    public string[]? Args { get; set; }
     public string? Payload { get; set; }
-
     public string? BotNameUsed { get; set; }
 
-    private Int32 ID { get; set; }
-
-    private Conf Config { get; set; }
-
     public override string ToString() {
-        var sb = new StringBuilder().Append($"ID: {ID}', Text: '{Text}'");
+        var sb = new StringBuilder().Append($"Text: '{Text}'");
         if (Command != null) {
             sb.Append($", Command: '{Command}'");
         }
 
-        if (ActualCommand != null) {
-            sb.Append($", ActualCommand: '{ActualCommand}'");
+        if (Alias != null) {
+            sb.Append($", ActualCommand: '{Alias}'");
         }
 
         if (Keywords is { Length: > 0 }) {

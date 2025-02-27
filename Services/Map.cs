@@ -15,7 +15,7 @@ public class Map
 {
     private string _yandexApikey { get; set; }
 
-    public Map(Authentication auth) => _yandexApikey = auth.YandexApiKey;
+    public Map() => _yandexApikey = Auth.Instance.YandexApiKey;
 
     public async Task<(Image?, (string lat, string lon))> Search(string location)
     {
@@ -23,16 +23,16 @@ public class Map
 
         if (coordinates == null)
         {
-            L.M("Location not found.");
+            L.I("Location not found.");
             return (null, (string.Empty, string.Empty));
         }
 
-        string mapUrl = GenerateMapUrl(coordinates.Value.lat, coordinates.Value.lon, 12, 650, 450);
+        var mapUrl = GenerateMapUrl(coordinates.Value.lat, coordinates.Value.lon, 12, 650, 450);
         var mapImage = await GetMapImageAsync(mapUrl);
 
         if (mapImage == null)
         {
-            L.M("Failed to retrieve map image.");
+            L.I("Failed to retrieve map image.");
             return (null, (string.Empty, string.Empty));
         }
 
@@ -48,15 +48,15 @@ public class Map
 
         try
         {
-            string encodedAddress = HttpUtility.UrlEncode(address);
-            string url = $"https://nominatim.openstreetmap.org/search?q={encodedAddress}&format=json&limit=1";
-            L.M($"Request URL: {url}");
+            var encodedAddress = HttpUtility.UrlEncode(address);
+            var url = $"https://nominatim.openstreetmap.org/search?q={encodedAddress}&format=json&limit=1";
+            L.I($"Request URL: {url}");
 
             var response = await httpClient.GetAsync(url);
 
             if (!response.IsSuccessStatusCode)
             {
-                L.M($"HTTP Error: {(int)response.StatusCode} - {response.ReasonPhrase}");
+                L.I($"HTTP Error: {(int)response.StatusCode} - {response.ReasonPhrase}");
                 return null;
             }
 
@@ -67,38 +67,38 @@ public class Map
 
             if (locationData == null || locationData.Length == 0)
             {
-                L.M("No location data found.");
+                L.I("No location data found.");
                 return null;
             }
 
-            string latString = locationData[0].Lat.Replace(',', '.');
-            string lonString = locationData[0].Lon.Replace(',', '.');
+            var latString = locationData[0].Lat.Replace(',', '.');
+            var lonString = locationData[0].Lon.Replace(',', '.');
 
-            if (double.TryParse(latString, NumberStyles.Float, CultureInfo.InvariantCulture, out double lat) &&
-                double.TryParse(lonString, NumberStyles.Float, CultureInfo.InvariantCulture, out double lon))
+            if (double.TryParse(latString, NumberStyles.Float, CultureInfo.InvariantCulture, out var lat) &&
+                double.TryParse(lonString, NumberStyles.Float, CultureInfo.InvariantCulture, out var lon))
             {
-                L.M($"Coordinates: lat={lat}, lon={lon}");
+                L.I($"Coordinates: lat={lat}, lon={lon}");
                 return (lat, lon);
             }
             else
             {
-                L.M("Failed to convert coordinates to doubles.");
+                L.I("Failed to convert coordinates to doubles.");
                 return null;
             }
         }
         catch (HttpRequestException e)
         {
-            L.M($"Request error: {e.Message}");
+            L.I($"Request error: {e.Message}");
             return null;
         }
         catch (JsonException e)
         {
-            L.M($"JSON parsing error: {e.Message}");
+            L.I($"JSON parsing error: {e.Message}");
             return null;
         }
         catch (Exception e)
         {
-            L.M($"Unexpected error: {e.Message}");
+            L.I($"Unexpected error: {e.Message}");
             return null;
         }
     }
@@ -117,7 +117,7 @@ public class Map
 
             if (!response.IsSuccessStatusCode)
             {
-                L.M($"HTTP Error: {(int)response.StatusCode} - {response.ReasonPhrase}");
+                L.I($"HTTP Error: {(int)response.StatusCode} - {response.ReasonPhrase}");
                 return null;
             }
 
@@ -126,12 +126,12 @@ public class Map
         }
         catch (HttpRequestException e)
         {
-            L.M($"Request error: {e.Message}");
+            L.I($"Request error: {e.Message}");
             return null;
         }
         catch (Exception e)
         {
-            L.M($"Unexpected error: {e.Message}");
+            L.I($"Unexpected error: {e.Message}");
             return null;
         }
     }
@@ -140,8 +140,8 @@ public class Map
     {
         const int markerSize = 10;
 
-        int markerX = mapImage.Width / 2;
-        int markerY = mapImage.Height / 2;
+        var markerX = mapImage.Width / 2;
+        var markerY = mapImage.Height / 2;
 
         mapImage.Mutate(ctx =>
         {

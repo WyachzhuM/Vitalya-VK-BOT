@@ -1,11 +1,4 @@
-﻿using Newtonsoft.Json;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
-namespace vkbot_vitalya.Services.Generators.TextGeneration;
+﻿namespace vkbot_vitalya.Services.Generators.TextGeneration;
 
 public class WordAssociations
 {
@@ -39,10 +32,8 @@ public class WordAssociations
     }
 
     // Получение следующего слова на основе текущего
-    public static string GetNextWord(string currentWord)
-    {
-        if (currentWord == null || !_associations.ContainsKey(currentWord))
-        {
+    public static string GetNextWord(string currentWord) {
+        if (!_associations.ContainsKey(currentWord)) {
             return string.Empty;
         }
 

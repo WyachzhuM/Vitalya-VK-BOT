@@ -13,13 +13,14 @@ public class Saves
     [JsonPropertyName("chats")]
     public IEnumerable<Chat> Chats { get; set; }
 
-    public static Saves? Load(string filePath)
+    public static Saves Load(string filePath)
     {
         if (!File.Exists(filePath))
             return new Saves(new List<Chat>());
 
         var jsonString = File.ReadAllText(filePath);
-        return JsonSerializer.Deserialize<Saves>(jsonString);
+        var saves = JsonSerializer.Deserialize<Saves>(jsonString);
+        return saves ?? new Saves(new List<Chat>());
     }
 
     public void Save(string filePath)
@@ -30,7 +31,7 @@ public class Saves
 
     public void AddChat(long peerId)
     {
-        if (!Chats.Any(chat => chat.PeerID == peerId))
+        if (Chats.All(chat => chat.PeerId != peerId))
         {
             Chats.ToList().Add(new Chat(peerId, new ChatProperties(), new List<User>()));
         }
@@ -38,8 +39,8 @@ public class Saves
 
     public void AddUserToChat(long peerId, long userId)
     {
-        var chat = Chats.FirstOrDefault(chat => chat.PeerID == peerId);
-        if (chat != null && !chat.Users.Any(user => user.UserID == userId))
+        var chat = Chats.FirstOrDefault(chat => chat.PeerId == peerId);
+        if (chat != null && chat.Users.All(user => user.UserID != userId))
         {
             chat.Users.Add(new User(userId));
         }
@@ -48,15 +49,15 @@ public class Saves
 
 public class Chat
 {
-    public Chat(long peerID, ChatProperties properties = null, List<User> users = null)
+    public Chat(long peerId, ChatProperties? properties = null, List<User>? users = null)
     {
-        PeerID = peerID;
+        PeerId = peerId;
         Properties = properties ?? new ChatProperties();
-        Users = users ?? new List<User>();
+        Users = users ?? [];
     }
 
     [JsonPropertyName("chat_peer_id")]
-    public long PeerID { get; set; }
+    public long PeerId { get; set; }
 
     [JsonPropertyName("property")]
     public ChatProperties Properties { get; set; }

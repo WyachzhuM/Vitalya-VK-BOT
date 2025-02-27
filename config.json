@@ -1,6 +1,6 @@
 {
   "bot_names": [ "виталя", "вит", "валера", "@pan_propalbot", "[pan_propalbot|@pan_propalbot]", "[club227202883|@pan_propalbot]", "vit", "v" ],
-  "response_probability": 0.08,
+  "response_probability": 0.1,
   "commands": {
     "generate_sentences": [ "/generate_sentences", "пизди", "gen" ],
     "echo": [ "echo", "ты тут?" ],
@@ -18,6 +18,7 @@
     "turnoffon": [ "pip", "pipa", "pipapipa" ],
     "chaos": [ "хаос", "chaos", "c" ],
     "funeral": [ "похороны", "похоронить", "похорони" ],
-    "who": [ "кто" ]
+    "who": [ "кто", "кого", "кому", "кем", "о ком" ],
+    "wiki": [ "wiki", "вики", "википедия", "что такое" ]
   }
 }

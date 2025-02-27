@@ -23,7 +23,7 @@ public class MessageSaver
             var fullPath = Path.Combine(_savedMessagesFolder, ChatMessages.GetFileName(message.PeerId?.ToString()));
             if (File.Exists(fullPath))
             {
-                ChatMessages saved = await ChatMessages.Deserialize(fullpath: fullPath);
+                var saved = await ChatMessages.Deserialize(fullpath: fullPath);
 
                 if (saved)
                 {
@@ -31,19 +31,19 @@ public class MessageSaver
                 }
                 else
                 {
-                    L.M($"{nameof(Program)}: saved == NULL");
+                    L.I($"{nameof(Program)}: saved == NULL");
                     return;
                 }
             }
             else
             {
-                ChatMessage message1 = new ChatMessage(message.FromId, message.Text, message.Date, message.ConversationMessageId);
+                var message1 = new ChatMessage(message.FromId, message.Text, message.Date, message.ConversationMessageId);
                 var messages = new List<ChatMessage>
             {
                 message1
             };
 
-                ChatMessages save = new ChatMessages(message.PeerId, messages);
+                var save = new ChatMessages(message.PeerId, messages);
 
                 await save.Save(_savedMessagesFolder, message);
             }
@@ -55,7 +55,7 @@ public class MessageSaver
     private static void UpdateWordAssociations(string text)
     {
         string[] words = text.Split(" ", StringSplitOptions.RemoveEmptyEntries);
-        for (int i = 0; i < words.Length - 1; i++)
+        for (var i = 0; i < words.Length - 1; i++)
         {
             WordAssociations.AddAssociation(words[i], words[i + 1]);
         }

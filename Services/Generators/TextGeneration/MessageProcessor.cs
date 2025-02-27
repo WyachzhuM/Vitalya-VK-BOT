@@ -1,17 +1,11 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Runtime.CompilerServices;
-using System.Text;
-using System.Threading.Tasks;
-using vkbot_vitalya.Core;
+﻿using vkbot_vitalya.Core;
 using VkNet.Model;
 
 namespace vkbot_vitalya.Services.Generators.TextGeneration;
 
 public static class MessageProcessor
 {
-    private const int MAX_MESSAGE_LENGTH = 3;
+    private const int MAX_MESSAGE_LENGTH = 50;
     private static Random _random = new Random();
 
     // To services 
@@ -32,7 +26,7 @@ public static class MessageProcessor
             return "Selected chat has no messages.";
         }
 
-        string newMessage = GenerateNewMessage(chatMessages.Messages);
+        var newMessage = GenerateNewMessage(chatMessages.Messages);
         return newMessage;
     }
 
@@ -47,7 +41,7 @@ public static class MessageProcessor
 
             derivedMessages = await ChatMessages.GetMessagesFromUser(message.PeerId, message.FromId);
 
-            string newMessage = GenerateNewMessage(derivedMessages);
+            var newMessage = GenerateNewMessage(derivedMessages);
 
             return newMessage;
         }
@@ -55,32 +49,28 @@ public static class MessageProcessor
         return "Unable to generate message, PeerId is null.";
     }
 
-    private static string GenerateNewMessage(List<ChatMessage> messages)
-    {
-        string result = string.Empty;
+    private static string GenerateNewMessage(List<ChatMessage> messages) {
+        var result = string.Empty;
 
-        if (messages.Count == 0)
-        {
+        if (messages.Count == 0) {
             return result;
         }
 
-        Random random = new Random();
+        var random = new Random();
 
-        string[] words = messages[random.Next(messages.Count)].Text.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        if (words.Length == 0)
-        {
+        var words = messages[random.Next(messages.Count)].Text!.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (words.Length == 0) {
             return result;
         }
 
-        string currentWord = words[random.Next(words.Length)];
+        var currentWord = words[random.Next(words.Length)];
 
-        for (int i = 0; i < MAX_MESSAGE_LENGTH; i++)
-        {
+        var m = random.Next(MAX_MESSAGE_LENGTH);
+        for (var i = 0; i < m; i++) {
             result += currentWord + " ";
 
-            string nextWord = WordAssociations.GetNextWord(currentWord);
-            if (string.IsNullOrEmpty(nextWord))
-            {
+            var nextWord = WordAssociations.GetNextWord(currentWord);
+            if (string.IsNullOrEmpty(nextWord)) {
                 break;
             }
 

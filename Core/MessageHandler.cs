@@ -144,7 +144,7 @@ public partial class MessageHandler {
                 HandleChaosCommand(message);
                 return;
             case "who":
-                HandleWhoCommand(message, args, aliasUsed);
+                HandleWhoCommand(message, aliasUsed, args);
                 return;
             case "wiki":
                 HandleWikiCommand(message, args);

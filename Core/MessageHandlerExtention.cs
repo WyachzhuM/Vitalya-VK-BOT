@@ -798,7 +798,7 @@ public partial class MessageHandler {
 
     private static async Task<(string url, string? text)> GetWikiPage(string title) {
         using var client = new HttpClient();
-        var url = $"https://ru.wikipedia.org/w/api.php?action=query&format=json&prop=extracts" +
+        var url = $"https://ru.wikipedia.org/w/api.php?action=query&format=json&prop=extracts&redirects=true" +
                   $"&exintro=true&explaintext=true&titles={Uri.EscapeDataString(title)}";
 
 
@@ -824,14 +824,24 @@ public partial class MessageHandler {
         return ($"ru.wikipedia.org/w/index.php?title={title}&action=edit", null);
     }
 
-    private async Task HandleWikiCommand(Message message, string title) {
-        var (url, text) = await GetWikiPage(title);
+    private async Task HandleWikiCommand(Message message, string args) {
+        var (url, text) = await GetWikiPage(args);
         if (text == null) {
             Answer(message.PeerId!.Value, $"Нет такой статьи, напиши сам: {url}");
             return;
         }
 
         Answer(message.PeerId!.Value, $"{text.Trim()}\n\n{url}");
+    }
+    
+    private async Task HandleWhatCommand(Message message, string args) {
+        var (_, text) = await GetWikiPage(args);
+        if (text == null) {
+            Answer(message.PeerId!.Value, $"А я ебу что ли?");
+            return;
+        }
+
+        Answer(message.PeerId!.Value, text.Trim());
     }
 }
 

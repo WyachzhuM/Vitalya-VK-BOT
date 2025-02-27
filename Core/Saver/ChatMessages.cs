@@ -59,11 +59,8 @@ public class ChatMessages
     public static implicit operator bool(ChatMessages? exists) => exists != null;
 
     #region Save Block
-    public static string GetFileName(string? peerId)
-    {
-        if (peerId != null)
-            return $"Chat{peerId}.json";
-        else return $"Chat_default.json";
+    public static string GetFileName(string peerId) {
+        return $"Chat{peerId}.json";
     }
 
     public static async Task<ChatMessages> Deserialize(string fullpath)
@@ -124,14 +121,8 @@ public class ChatMessages
         }
     }
 
-    public async Task Save(string filePath, Message? message)
+    public async Task Save(string filePath, Message message)
     {
-        if (message?.PeerId == null)
-        {
-            L.I($"{nameof(ChatMessages)}: message?.PeerId is NULL");
-            return;
-        }
-
         var message1 = new ChatMessage(message.FromId, message.Text, message.Date, message.ConversationMessageId);
 
         var cm = new ChatMessages(message.PeerId, new List<ChatMessage>() { message1 });

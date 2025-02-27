@@ -15,7 +15,7 @@ public static class Program {
     private static Vk _vk = new Vk();
 
     // Displays warn if set to true
-    public static bool IgnoreTagsBlacklist = false;
+    public static bool IgnoreTagsBlacklist = true;
 
     public static string _savedMessagesFolder = Path.Combine(Environment.CurrentDirectory, "SavedMessages");
 
@@ -84,7 +84,7 @@ public static class Program {
                             await _messageSaver.SaveMessage(message);
 
                         try {
-                            _handler.HandleMessage(message);
+                            await _handler.HandleMessage(message);
                         } catch (Exception e) {
                             L.E("Failed to handle message", e);
                         }

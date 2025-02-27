@@ -1,5 +1,9 @@
-﻿using System.Text.RegularExpressions;
+﻿using System.Diagnostics;
+using System.Text;
+using System.Text.RegularExpressions;
 using System.Web;
+using log4net.Repository.Hierarchy;
+using Microsoft.Extensions.Primitives;
 using vkbot_vitalya.Config;
 using vkbot_vitalya.Core;
 using vkbot_vitalya.Services.Generators;
@@ -30,91 +34,127 @@ public partial class MessageHandler {
     private ServiceEndpoint ServiceEndpoint { get; set; }
     private ImageProcessor Processor { get; set; }
 
-    public void HandleMessage(Message message) {
-        message.Out();
-        MessageSaving(message);
-
-        var userRequest = new UserRequest(message);
-
-        userRequest.onPayload = payload => HandlePayload(userRequest.Message);
-
-        userRequest.onSimpleText = async message => {
-            if (Rand.NextDouble() < Conf.Instance.ResponseProbability) {
-                var responseMessage = await MessageProcessor.KeepUpConversation(message);
-                Answer(message.PeerId!.Value, responseMessage);
-            }
-        };
-
-        userRequest.onCommand = async cmd => {
-            switch (cmd.CommandName) {
-                case "meme":
-                    HandleMemeCommand(message, cmd.Args);
-
-                    return;
-                case "weather":
-                    HandleWeatherCommand(message, cmd.Args);
-
-                    return;
-                case "hentai":
-                    HandleHCommand(message);
-
-                    return;
-                case "anime":
-                    HandleAnimeCommand(message);
-
-                    return;
-                case "where":
-                    HandleSearchCommand(message, cmd.Args);
-
-                    return;
-                case "help":
-                    HandleHelpCommand(message);
-                    return;
-                case "settings":
-                    HandleSettingsCommand(message);
-
-                    return;
-                case "py":
-                    L.I("Command 'Python' recognized.");
-                    HandlePythonCommand(message);
-                    return;
-
-                case "generate_sentences":
-                    var sentencesResponseMessage = await MessageProcessor.KeepUpConversation();
-                    Answer(message.PeerId!.Value, sentencesResponseMessage);
-                    return;
-                case "echo":
-                    Answer(message.PeerId!.Value, userRequest.Text);
-                    return;
-
-                case "chaos":
-                    L.I("Command 'Chaos' recognized.");
-                    HandleChaosCommand(message);
-                    return;
-
-                case "who":
-                    HandleWhoCommand(userRequest);
-                    return;
-
-                case "wiki":
-                    HandleWikiCommand(message, cmd.Args);
-                    return;
-                default:
-                    /* Больше некуда это вставлять */
-                    await HandlePhotoCommand(message, cmd.CommandName);
-                    return;
-            }
-        };
-
-        if (userRequest.Payload != null) {
+    public async Task HandleMessage(Message message) {
+        var sb = new StringBuilder();
+        if (message.PeerId != message.FromId)
+            sb.Append($"[{message.PeerId}] ");
+        sb.Append($"<{message.FromId}>: \"{message.Text}\"");
+        if (message.Attachments.Count > 0)
+            sb.Append($" + {message.Attachments.Count} attachments");
+        L.D(sb);
+        
+        if (message.Payload != null) {
             L.I("Got payload");
-            userRequest.onPayload?.Invoke(userRequest.Payload);
-        } else if (userRequest.BotNameUsed != null && userRequest.Alias != null) {
-            L.I($"Got command: '{userRequest.Command}' '{string.Join("' '", userRequest.Args)}'.");
-            if (userRequest.Command != null && userRequest.Keywords != null)
-                userRequest.onCommand?.Invoke(new Cmd(userRequest.Command, userRequest.Keywords));
-        } else {
-            userRequest.onSimpleText?.Invoke(userRequest.Message);
+            HandlePayload(message);
+            return;
+        }
+
+        // MessageSaving(message);
+
+        var text = Regex.Replace(message.Text, @"\s+", " ").Trim();
+        var inDm = message.PeerId < 2000000000;
+
+        string? nameUsed = null;
+        string? commandUsed = null;
+        string? aliasUsed = null;
+        string? args = null;
+
+        // После слова может быть пробел или конец строки
+        foreach (var name in Conf.Instance.BotNames) {
+            if (Regex.IsMatch(text.ToLower(), $"^{Regex.Escape(name)}(\\s|$)")) {
+                nameUsed = name;
+                text = text.Substring(name.Length).TrimStart();
+                break;
+            }
+        }
+
+        if (!inDm && nameUsed == null) {
+            // Simple text
+            if (Rand.NextSingle() < Conf.Instance.ResponseProbability) {
+                var responseMessage = await MessageProcessor.KeepUpConversation(message);
+                Answer(message, responseMessage);
+            }
+
+            return;
+        }
+
+        // После слова может быть пробел или конец строки
+        foreach (var command in Conf.Instance.Commands) {
+            foreach (var alias in command.Value) {
+                if (Regex.IsMatch(text.ToLower(), $"^{Regex.Escape(alias)}(\\s|$)")) {
+                    commandUsed = command.Key;
+                    aliasUsed = alias;
+                    args = text.Substring(alias.Length).TrimStart();
+                    break;
+                }
+            }
+        }
+
+        if (commandUsed == null) {
+            // Mention without a command
+            var sentencesResponseMessage = await MessageProcessor.KeepUpConversation(message);
+            Answer(message.PeerId!.Value, sentencesResponseMessage);
+            // HandleHelpCommand(message);
+            return;
+        }
+
+        // Command detected
+        Debug.Assert(args != null);
+        Debug.Assert(aliasUsed != null);
+
+        var sb2 = new StringBuilder($"Name: '{nameUsed}', Alias: '{aliasUsed}'");
+        if (args is { Length: > 0 }) {
+            sb2.Append($", Args: '{string.Join("' '", args)}'");
+        }
+        L.D(sb2);
+
+        switch (commandUsed) {
+            case "meme":
+                HandleMemeCommand(message, args);
+                return;
+            case "weather":
+                HandleWeatherCommand(message, args);
+                return;
+            case "hentai":
+                HandleHCommand(message, args);
+                return;
+            case "anime":
+                HandleAnimeCommand(message, args);
+                return;
+            case "where":
+                HandleSearchCommand(message, args);
+                return;
+            case "help":
+                HandleHelpCommand(message);
+                return;
+            case "settings":
+                HandleSettingsCommand(message);
+                return;
+            case "py":
+                HandlePythonCommand(message);
+                return;
+            case "generate_sentences":
+                var sentencesResponseMessage = await MessageProcessor.KeepUpConversation();
+                Answer(message.PeerId!.Value, sentencesResponseMessage);
+                return;
+            case "echo":
+                Answer(message.PeerId!.Value, message.Text);
+                return;
+            case "chaos":
+                HandleChaosCommand(message);
+                return;
+            case "who":
+                HandleWhoCommand(message, args, aliasUsed);
+                return;
+            case "wiki":
+                HandleWikiCommand(message, args);
+                return;
+            case "funeral":
+                HandleFuneralCommand(message);
+                return;
+            default:
+                await HandlePhotoCommand(message, commandUsed);
+                return;
         }
     }
 

@@ -46,10 +46,6 @@ public partial class MessageHandler {
                 L.I("Command 'AddText' recognized.");
                 HandleImageCommand(message, image, Processor.AddTextImageCommand);
                 break;
-            case "funeral":
-                L.I("Command 'Funeral' recognized.");
-                await HandleFuneralCommand(message);
-                return;
             default:
                 L.W("Tried to handle photo command, but command doesn't need a photo. Generating random message.");
                 var responseMessage = await MessageProcessor.KeepUpConversation();
@@ -745,7 +741,7 @@ public partial class MessageHandler {
 
     #endregion 💩
 
-    private void HandleWhoCommand(UserRequest userRequest) {
+    private void HandleWhoCommand(Message message, string alias, string args) {
         string[] prefixes = [
             "Уверен, что",
             "Определенно",
@@ -760,11 +756,11 @@ public partial class MessageHandler {
             "Все и так знают:"
         ];
         if (Rand.NextSingle() < 0.1) {
-            Answer(userRequest.Message, "А я откуда знаю?");
+            Answer(message, "А я откуда знаю?");
             return;
         }
 
-        var text = userRequest.Keywords ?? string.Empty;
+        var text = args ?? string.Empty;
         // Я НЕНАВИЖУ NLP Я НЕНАВИЖУ NLP Я НЕНАВИЖУ NLP Я НЕНАВИЖУ NLP
         text = Regex.Replace(text, @"\bты\b", "я", RegexOptions.IgnoreCase);
         text = Regex.Replace(text, @"\bтебя\b", "меня", RegexOptions.IgnoreCase);
@@ -786,18 +782,18 @@ public partial class MessageHandler {
         text = Regex.Replace(text, @"\bтвоём\b", "моём", RegexOptions.IgnoreCase);
         text = text.Replace('?', '.');
 
-        var users = _vk.Api.Messages.GetConversationMembers(userRequest.Message.PeerId!.Value, fields: ЕБАНАЯХУЙНЯ)
+        var users = _vk.Api.Messages.GetConversationMembers(message.PeerId!.Value, fields: ЕБАНАЯХУЙНЯ)
             .Profiles;
         var answerUser = users[Rand.Next(users.Count)];
         var prefix = prefixes[Rand.Next(prefixes.Length)];
-        var decl = userRequest.Alias switch {
+        var decl = alias switch {
             "кого" => Vk.Declension.Gen,
             "кому" => Vk.Declension.Dat,
             "кем" => Vk.Declension.Abl,
             "о ком" => Vk.Declension.Ins,
             _ => Vk.Declension.Nom
         };
-        Answer(userRequest.Message, $"{prefix} {Vk.PingUser(answerUser, decl: decl)} {text}");
+        Answer(message, $"{prefix} {Vk.PingUser(answerUser, decl: decl)} {text}");
     }
 
     private static async Task<(string url, string? text)> GetWikiPage(string title) {

@@ -3,26 +3,22 @@ using VkNet.Model;
 
 namespace vkbot_vitalya.Services.Generators.TextGeneration;
 
-public static class MessageProcessor
-{
+public static class MessageProcessor {
     private const int MAX_MESSAGE_LENGTH = 50;
     private static Random _random = new Random();
 
     // To services 
-    public static async Task<string> KeepUpConversation()
-    {
+    public static async Task<string> KeepUpConversation() {
         var chatFiles = Directory.GetFiles(Program._savedMessagesFolder, "Chat*.json");
 
-        if (chatFiles.Length == 0)
-        {
+        if (chatFiles.Length == 0) {
             return "No chats available.";
         }
 
         var randomChatFilePath = chatFiles[_random.Next(chatFiles.Length)];
         var chatMessages = await ChatMessages.Deserialize(randomChatFilePath);
 
-        if (chatMessages.Messages.Count == 0)
-        {
+        if (chatMessages.Messages.Count == 0) {
             return "Selected chat has no messages.";
         }
 
@@ -31,22 +27,12 @@ public static class MessageProcessor
     }
 
     // To random chat 
-    public static async Task<string> KeepUpConversation(Message message)
-    {
-        if (message.PeerId != null)
-        {
-            var messages = await ChatMessages.GetMessages(message.PeerId);
+    public static async Task<string> KeepUpConversation(Message message) {
+        // var messages = await ChatMessages.GetMessages(message.PeerId);
 
-            List<ChatMessage> derivedMessages;
-
-            derivedMessages = await ChatMessages.GetMessagesFromUser(message.PeerId, message.FromId);
-
-            var newMessage = GenerateNewMessage(derivedMessages);
-
-            return newMessage;
-        }
-
-        return "Unable to generate message, PeerId is null.";
+        var derivedMessages = await ChatMessages.GetMessagesFromUser(message.PeerId, message.FromId);
+        var newMessage = GenerateNewMessage(derivedMessages);
+        return newMessage;
     }
 
     private static string GenerateNewMessage(List<ChatMessage> messages) {

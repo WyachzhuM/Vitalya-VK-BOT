@@ -184,8 +184,8 @@ public class ImageProcessor
         return newImage;
     }
     public static async Task<Image<Rgba32>> Funeral(Image<Rgba32> image) {
-        const int maxWidth = 256;
-        const int maxHeight = 256;
+        const int maxWidth = 306;
+        const int maxHeight = 306;
 
         var grave = Image.Load<Rgba32>("./grave.png");
 
@@ -196,6 +196,11 @@ public class ImageProcessor
             image.Mutate(i => i.Resize(image.Height / 2, image.Height));
         }
 
+        // Если фото слишком маленькое, растягиваем по ширине игнорируя высоту, она проверится дальше
+        if (image.Height < maxHeight && image.Width < maxWidth) {
+            image.Mutate(i => i.Resize(maxWidth, (int)(image.Height / ((float)image.Width / maxWidth))));
+        }
+
         if (image.Width > maxWidth) {
             image.Mutate(i => i.Resize(maxWidth, (int)(image.Height / ((float)image.Width / maxWidth))));
         }
@@ -204,22 +209,22 @@ public class ImageProcessor
             image.Mutate(i => i.Resize((int)(image.Width / ((float)image.Height / maxHeight)), maxHeight));
         }
 
-        image.Mutate(i => i.Grayscale());
+        image.Mutate(i => i.Saturate(0.25f));
 
         var font = SystemFonts.CreateFont("Georgia", 30, FontStyle.Italic);
         /* I FUCKING LOVE FUNCTIONAL STYLE */
         grave.Mutate(i =>
-            i.DrawImage(image, new Point(500 + (maxWidth - image.Width) / 2, 220 + (maxHeight - image.Height) / 2), 1));
+            i.DrawImage(image, new Point(475 + (maxWidth - image.Width) / 2, 195 + (maxHeight - image.Height) / 2), 1));
         grave.Mutate(i => i.DrawText(DateTime.Parse("01.01.1930")
-                    .AddTicks((long)(random.NextDouble()
-                                     * (DateTime.Parse("01.01.2006") - DateTime.Parse("01.01.1930")).Ticks))
-                    .ToString("d") + " - " + DateTime.Today.ToString("d"), font, Color.Black, new PointF(465, 500)));
+            .AddTicks((long)(random.NextDouble()
+                             * (DateTime.Parse("01.01.2006") - DateTime.Parse("01.01.1930")).Ticks))
+            .ToString("d") + " - " + DateTime.Today.ToString("d"), font, Color.Black, new PointF(465, 500)));
 
-        var message = await MessageProcessor.KeepUpConversation();
+        // var message = await MessageProcessor.KeepUpConversation();
 
 
         grave.Mutate(i =>
-            i.DrawText(message, SystemFonts.CreateFont("Georgia", 40, FontStyle.Italic), Color.Black,
+            i.DrawText("REST IN PENIS", SystemFonts.CreateFont("Georgia", 40, FontStyle.Italic), Color.Black,
                 new PointF(480, 560)));
 
         return grave;

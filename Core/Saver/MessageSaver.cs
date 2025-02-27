@@ -13,43 +13,39 @@ public class MessageSaver
         _savedMessagesFolder = savedMessagesFolder;
     }
 
-    public async Task SaveMessage(Message? message)
-    {
-        if (message != null)
+    public async Task SaveMessage(Message message) {
+        if (!Directory.Exists(_savedMessagesFolder))
+            Directory.CreateDirectory(_savedMessagesFolder);
+
+        var fullPath = Path.Combine(_savedMessagesFolder, ChatMessages.GetFileName(message.PeerId.ToString()!));
+        if (File.Exists(fullPath))
         {
-            if (!Directory.Exists(_savedMessagesFolder))
-                Directory.CreateDirectory(_savedMessagesFolder);
+            var saved = await ChatMessages.Deserialize(fullpath: fullPath);
 
-            var fullPath = Path.Combine(_savedMessagesFolder, ChatMessages.GetFileName(message.PeerId?.ToString()));
-            if (File.Exists(fullPath))
+            if (saved)
             {
-                var saved = await ChatMessages.Deserialize(fullpath: fullPath);
-
-                if (saved)
-                {
-                    await saved.Update(_savedMessagesFolder, message);
-                }
-                else
-                {
-                    L.I($"{nameof(Program)}: saved == NULL");
-                    return;
-                }
+                await saved.Update(_savedMessagesFolder, message);
             }
             else
             {
-                var message1 = new ChatMessage(message.FromId, message.Text, message.Date, message.ConversationMessageId);
-                var messages = new List<ChatMessage>
+                L.I($"{nameof(Program)}: saved == NULL");
+                return;
+            }
+        }
+        else
+        {
+            var message1 = new ChatMessage(message.FromId, message.Text, message.Date, message.ConversationMessageId);
+            var messages = new List<ChatMessage>
             {
                 message1
             };
 
-                var save = new ChatMessages(message.PeerId, messages);
+            var save = new ChatMessages(message.PeerId, messages);
 
-                await save.Save(_savedMessagesFolder, message);
-            }
-
-            UpdateWordAssociations(message.Text);
+            await save.Save(_savedMessagesFolder, message);
         }
+
+        UpdateWordAssociations(message.Text);
     }
 
     private static void UpdateWordAssociations(string text)

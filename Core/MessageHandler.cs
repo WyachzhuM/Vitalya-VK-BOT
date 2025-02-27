@@ -149,6 +149,9 @@ public partial class MessageHandler {
             case "wiki":
                 HandleWikiCommand(message, args);
                 return;
+            case "what":
+                HandleWhatCommand(message, args);
+                return;
             case "funeral":
                 HandleFuneralCommand(message);
                 return;

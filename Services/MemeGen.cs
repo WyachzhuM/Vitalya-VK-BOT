@@ -8,16 +8,16 @@ namespace vkbot_vitalya.Services;
 [Obsolete]
 public class MemeGen
 {
-    public MemeGen(Authentication auth)
+    public MemeGen()
     {
-        if (auth.MemeGenApiKey == null)
+        if (Auth.Instance.MemeGenApiKey == null)
         {
-            L.M("Put the meme apikey into auth.json file!");
+            L.I("Put the meme apikey into auth.json file!");
             ApiKey = string.Empty;
         }
         else
         {
-            ApiKey = auth.MemeGenApiKey;
+            ApiKey = Auth.Instance.MemeGenApiKey;
             Client.DefaultRequestHeaders.Add("x-api-key", ApiKey);
         }
     }
@@ -32,20 +32,20 @@ public class MemeGen
     {
         try
         {
-            string memetype = GetMemeTypeString(type);
-            string url = $"https://api.apileague.com/search-memes?keywords={keywords}&number={number}&media-type={memetype}";
+            var memetype = GetMemeTypeString(type);
+            var url = $"https://api.apileague.com/search-memes?keywords={keywords}&number={number}&media-type={memetype}";
 
-            L.M($"Request form: " + url);
+            L.I($"Request form: " + url);
 
-            HttpResponseMessage response = await Client.GetAsync(url);
+            var response = await Client.GetAsync(url);
             response.EnsureSuccessStatusCode();
-            string responseBody = await response.Content.ReadAsStringAsync();
+            var responseBody = await response.Content.ReadAsStringAsync();
 
             var memes = JsonSerializer.Deserialize<MemeGenResponse>(responseBody);
 
             if (memes != null)
             {
-                L.M($"Finded {memes.Memes.Count} memes!");
+                L.I($"Finded {memes.Memes.Count} memes!");
                 return memes;
             }
             else
@@ -55,7 +55,7 @@ public class MemeGen
         }
         catch (HttpRequestException e)
         {
-            L.E(e);
+            L.E($"Failed to find meme", e);
             return null;
         }
     }
@@ -65,7 +65,7 @@ public class MemeGen
     /// </summary>
     public async Task<Meme?> RandomMeme(string keywords, MemeType type)
     {
-        string memetype = string.Empty;
+        var memetype = string.Empty;
         if (type == MemeType.Image)
             memetype = "jpeg";
         else if (type == MemeType.Video)
@@ -74,13 +74,13 @@ public class MemeGen
             memetype = "gif";
         else memetype = "jpeg";
 
-        string url = $"https://api.apileague.com/retrieve-random-meme?keywords={keywords}&media-type={memetype}";
+        var url = $"https://api.apileague.com/retrieve-random-meme?keywords={keywords}&media-type={memetype}";
 
         try
         {
-            HttpResponseMessage response = await Client.GetAsync(url);
+            var response = await Client.GetAsync(url);
             response.EnsureSuccessStatusCode();
-            string responseBody = await response.Content.ReadAsStringAsync();
+            var responseBody = await response.Content.ReadAsStringAsync();
 
             var meme = JsonSerializer.Deserialize<Meme>(responseBody);
 
@@ -95,27 +95,27 @@ public class MemeGen
         }
         catch (HttpRequestException e)
         {
-            L.E(e);
+            L.E("", e);
             return null;
         }
     }
 
     public async void Test()
     {
-        string url = "https://api.apileague.com/search-memes?keywords=rocket&number=3";
-        string apiKey = "1ba7b7af9d514fb6aa0b4df448ae3c22";
+        var url = "https://api.apileague.com/search-memes?keywords=rocket&number=3";
+        var apiKey = "1ba7b7af9d514fb6aa0b4df448ae3c22";
 
         try
         {
-            HttpResponseMessage response = await Client.GetAsync(url);
+            var response = await Client.GetAsync(url);
             response.EnsureSuccessStatusCode();
-            string responseBody = await response.Content.ReadAsStringAsync();
+            var responseBody = await response.Content.ReadAsStringAsync();
 
-            L.M(responseBody);
+            L.I(responseBody);
         }
         catch (HttpRequestException e)
         {
-            L.E(e);
+            L.E("", e);
         }
     }
 

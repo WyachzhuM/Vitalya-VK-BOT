@@ -1,53 +1,54 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Text.Json;
+﻿using System.Text.Json;
 using System.Text.Json.Serialization;
-using System.Threading.Tasks;
 using vkbot_vitalya.Core;
 
 namespace vkbot_vitalya.Config;
 
-public class Conf
-{
-    public Conf(List<string> botNames, double responseProbability, Dictionary<string, List<string>> commands, Dictionary<string, JsonElement> additionalData)
-    {
-        BotNames = botNames;
-        ResponseProbability = responseProbability;
-        Commands = commands;
-        AdditionalData = additionalData;
-    }
+public static class Conf {
+    public static readonly Configuration Instance;
 
-    public static Conf Instance { get; private set; }
-
-    [JsonPropertyName("bot_names")]
-    public List<string> BotNames { get; set; }
-
-    [JsonPropertyName("response_probability")]
-    public double ResponseProbability { get; set; }
-
-    [JsonPropertyName("commands")]
-    public Dictionary<string, List<string>> Commands { get; set; }
-
-    public Dictionary<string, JsonElement> AdditionalData { get; set; }
-
-    public static Conf? GetConfigFromJson(string path)
-    {
-        string json = File.ReadAllText(path);
-        JsonSerializerOptions jsonSerializerOptions = new JsonSerializerOptions
-        {
-            DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
-        };
-        Conf? result;
-        try {
-            result = JsonSerializer.Deserialize<Conf>(json, jsonSerializerOptions);
-        } catch (Exception e) {
-            L.F("Config file is invalid", e);
-            return null;
+    static Conf() {
+        const string configPath = "config.json";
+        if (!File.Exists(configPath)) {
+            L.F($"{configPath} not found");
+            throw new FileNotFoundException($"{configPath} not found");
         }
 
-        Instance = result ?? throw new Exception("Invalid config file");
-        return result;
+        Instance = Configuration.Load(configPath);
+    }
+
+    public class Configuration {
+        public Configuration(List<string> botNames, double responseProbability, Dictionary<string, List<string>> commands,
+            Dictionary<string, JsonElement> additionalData) {
+            BotNames = botNames;
+            ResponseProbability = responseProbability;
+            Commands = commands;
+            AdditionalData = additionalData;
+        }
+
+        [JsonPropertyName("bot_names")]
+        public List<string> BotNames { get; init; }
+
+        [JsonPropertyName("response_probability")]
+        public double ResponseProbability { get; init; }
+
+        [JsonPropertyName("commands")]
+        public Dictionary<string, List<string>> Commands { get; init; }
+
+        public Dictionary<string, JsonElement> AdditionalData { get; init; }
+
+        public static Configuration Load(string path) {
+            var json = File.ReadAllText(path);
+            var jsonSerializerOptions = new JsonSerializerOptions {
+                DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
+            };
+            try {
+                return JsonSerializer.Deserialize<Configuration>(json, jsonSerializerOptions)
+                       ?? throw new Exception("Invalid config file");
+            } catch (Exception e) {
+                throw new Exception("Failed to load config file", e);
+            }
+        }
     }
 }
+

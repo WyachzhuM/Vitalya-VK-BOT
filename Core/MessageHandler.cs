@@ -1,237 +1,226 @@
 ﻿using System.Diagnostics;
-using System.Security.Cryptography.X509Certificates;
+using System.Text;
 using System.Text.RegularExpressions;
 using System.Web;
+using log4net.Repository.Hierarchy;
+using Microsoft.Extensions.Primitives;
 using vkbot_vitalya.Config;
 using vkbot_vitalya.Core;
 using vkbot_vitalya.Services.Generators;
 using vkbot_vitalya.Services.Generators.TextGeneration;
-using VkNet;
 using VkNet.Model;
 
 namespace vkbot_vitalya;
 
-public partial class MessageHandler
-{
-    private Random _random = new Random();
-    private Timer _messageTimer, _updateTimer;
-    private VkApi _vkApi;
-    private readonly Conf _config = Conf.Instance;
-    private ulong _groupId;
+public partial class MessageHandler {
+    private static readonly Random Rand = new Random();
+    private readonly Vk _vk;
     private Saves _saves;
-    private List<UserRequest> _userRequests;
+
+    [Obsolete] private Timer _messageTimer, _updateTimer;
 
     public bool isEnabled = true;
     private const string SavesFilePath = "./saves.json";
 
-    public MessageHandler(Authentication auth, bool isDebug)
-    {
-        Auth = auth;
-        ServiceEndpoint = new ServiceEndpoint(Auth);
+    public MessageHandler(Vk vk) {
+        _vk = vk;
+        ServiceEndpoint = new ServiceEndpoint();
         Processor = new ImageProcessor();
         _saves = Saves.Load(SavesFilePath);
-        IsDebug = isDebug;
-        _updateTimer = new Timer(Update, null, TimeSpan.FromMinutes(10), TimeSpan.FromMinutes(10));
-        _messageTimer = new Timer(SendPeriodicMessages, null, TimeSpan.FromMinutes(60 * 2), TimeSpan.FromMinutes(60 * 2));
-
-        _userRequests = new List<UserRequest>();
+        // _updateTimer = new Timer(Update, null, TimeSpan.FromMinutes(10), TimeSpan.FromMinutes(10));
+        // _messageTimer = new Timer(SendPeriodicMessages, null, TimeSpan.FromMinutes(60 * 2), TimeSpan.FromMinutes(60 * 2));
     }
 
     private ServiceEndpoint ServiceEndpoint { get; set; }
     private ImageProcessor Processor { get; set; }
-    private Authentication Auth { get; set; }
-    private bool IsDebug { get; set; }
 
-    /// <summary>
-    /// Метод загрузки параметров сообщения
-    /// </summary>
-    public void HandleMessage(VkApi api, Message message, ulong groupId) {
-        _vkApi = api;
-        _groupId = groupId;
+    public async Task HandleMessage(Message message) {
+        var sb = new StringBuilder();
+        if (message.PeerId != message.FromId)
+            sb.Append($"[{message.PeerId}] ");
+        sb.Append($"<{message.FromId}>: \"{message.Text}\"");
+        if (message.Attachments.Count > 0)
+            sb.Append($" + {message.Attachments.Count} attachments");
+        L.D(sb);
+        
+        if (message.Payload != null) {
+            L.I("Got payload");
+            HandlePayload(message);
+            return;
+        }
 
-        message.Out();
+        // MessageSaving(message);
 
-        MessageSaving(message);
+        var text = Regex.Replace(message.Text, @"\s+", " ").Trim();
+        var inDm = message.PeerId < 2000000000;
 
-        var userMessage = new UserRequest(message, _config);
+        string? nameUsed = null;
+        string? commandUsed = null;
+        string? aliasUsed = null;
+        string? args = null;
 
-        userMessage.onPayload = payload => { HandlePayload(api, userMessage.Message, groupId); };
+        // После слова может быть пробел или конец строки
+        foreach (var name in Conf.Instance.BotNames) {
+            if (Regex.IsMatch(text.ToLower(), $"^{Regex.Escape(name)}(\\s|$)")) {
+                nameUsed = name;
+                text = text.Substring(name.Length).TrimStart();
+                break;
+            }
+        }
 
-        userMessage.onSimpleText = async message => {
-            if (_random.NextDouble() < _config.ResponseProbability) {
+        if (!inDm && nameUsed == null) {
+            // Simple text
+            if (Rand.NextSingle() < Conf.Instance.ResponseProbability) {
                 var responseMessage = await MessageProcessor.KeepUpConversation(message);
-                SendResponse(api, message.PeerId.Value, responseMessage);
+                Answer(message, responseMessage);
             }
-        };
 
-        userMessage.onCommand = async cmd => {
-            switch (cmd.CommandName) {
-                case "meme":
-                    HandleMemeCommand(api, message, groupId, cmd.Args);
+            return;
+        }
 
-                    return;
-                case "weather":
-                    HandleWeatherCommand(api, message, cmd.Args);
-
-                    return;
-                case "hentai":
-                    HandleHCommand(api, message, groupId);
-
-                    return;
-                case "anime":
-                    HandleAnimeCommand(api, message, groupId);
-
-                    return;
-                case "where":
-                    HandleSearchCommand(api, message, groupId, cmd.Args);
-
-                    return;
-                case "help":
-                    HandleHelpCommand(api, message, groupId);
-                    return;
-                case "settings":
-                    HandleSettingsCommand(api, message, groupId);
-
-                    return;
-                case "py":
-                    L.M("Command 'Python' recognized.");
-                    HandlePythonCommand(api, message, groupId);
-                    return;
-
-                case "generate_sentences":
-                    var sentencesResponseMessage = await MessageProcessor.KeepUpConversation();
-                    SendResponse(api, message.PeerId!.Value, sentencesResponseMessage);
-                    return;
-                case "echo":
-                    SendResponse(api, message.PeerId!.Value, userMessage.Text);
-                    return;
-
-                case "chaos":
-                    L.M("Command 'Chaos' recognized.");
-                    HandleChaosCommand(api, message);
-                    return;
-
-                case "who":
-                    HandleWhoCommand(api, message);
-                    return;
-                default:
-                    /* Больше некуда это вставлять */
-                    await HandlePhotoCommand(api, message, groupId, cmd.CommandName, _config);
-                    return;
+        // После слова может быть пробел или конец строки
+        foreach (var command in Conf.Instance.Commands) {
+            foreach (var alias in command.Value) {
+                if (Regex.IsMatch(text.ToLower(), $"^{Regex.Escape(alias)}(\\s|$)")) {
+                    commandUsed = command.Key;
+                    aliasUsed = alias;
+                    args = text.Substring(alias.Length).TrimStart();
+                    break;
+                }
             }
-        };
+        }
 
-        userMessage.Init();
+        if (commandUsed == null) {
+            // Mention without a command
+            var sentencesResponseMessage = await MessageProcessor.KeepUpConversation(message);
+            Answer(message.PeerId!.Value, sentencesResponseMessage);
+            // HandleHelpCommand(message);
+            return;
+        }
+
+        // Command detected
+        Debug.Assert(args != null);
+        Debug.Assert(aliasUsed != null);
+
+        var sb2 = new StringBuilder($"Name: '{nameUsed}', Alias: '{aliasUsed}'");
+        if (args is { Length: > 0 }) {
+            sb2.Append($", Args: '{string.Join("' '", args)}'");
+        }
+        L.D(sb2);
+
+        switch (commandUsed) {
+            case "meme":
+                HandleMemeCommand(message, args);
+                return;
+            case "weather":
+                HandleWeatherCommand(message, args);
+                return;
+            case "hentai":
+                HandleHCommand(message, args);
+                return;
+            case "anime":
+                HandleAnimeCommand(message, args);
+                return;
+            case "where":
+                HandleSearchCommand(message, args);
+                return;
+            case "help":
+                HandleHelpCommand(message);
+                return;
+            case "settings":
+                HandleSettingsCommand(message);
+                return;
+            case "py":
+                HandlePythonCommand(message);
+                return;
+            case "generate_sentences":
+                var sentencesResponseMessage = await MessageProcessor.KeepUpConversation();
+                Answer(message.PeerId!.Value, sentencesResponseMessage);
+                return;
+            case "echo":
+                Answer(message.PeerId!.Value, message.Text);
+                return;
+            case "chaos":
+                HandleChaosCommand(message);
+                return;
+            case "who":
+                HandleWhoCommand(message, args, aliasUsed);
+                return;
+            case "wiki":
+                HandleWikiCommand(message, args);
+                return;
+            case "funeral":
+                HandleFuneralCommand(message);
+                return;
+            default:
+                await HandlePhotoCommand(message, commandUsed);
+                return;
+        }
     }
 
-    private void MessageSaving(Message message)
-    {
-        _saves.AddChat(message.PeerId.Value);
-        _saves.AddUserToChat(message.PeerId.Value, message.FromId.Value);
+    private void MessageSaving(Message message) {
+        _saves.AddChat(message.PeerId!.Value);
+        _saves.AddUserToChat(message.PeerId!.Value, message.FromId.Value);
         _saves.Save(SavesFilePath);
     }
 
-    private void SendResponse(VkApi api, long? peerId, string message)
-    {
-        try
-        {
-            if (peerId != null)
-            {
-                api.Messages.Send(new MessagesSendParams
-                {
-                    RandomId = _random.Next(),
-                    PeerId = peerId,
-                    Message = message
-                });
-                L.M($"Sent response: {message}");
-            }
-            else
-            {
-                Console.WriteLine("peerId is NULL");
-            }
+    private void Answer(long peerId, string text, long? replyTo = null) {
+        if (text is not { Length: > 0 }) {
+            L.E("SendResponse: Message is empty");
+            return;
         }
-        catch (Exception ex)
-        {
-            L.E(ex);
+
+        try {
+            _vk.Api.Messages.Send(new MessagesSendParams {
+                RandomId = Rand.Next(),
+                PeerId = peerId,
+                Message = text,
+                ReplyTo = replyTo
+            });
+            L.I($"Sent response: {text}");
+        } catch (Exception e) {
+            L.E("Failed to send response", e);
         }
     }
 
-    private void SendResponse(VkApi api, long? peerId, string message, long? replyTo)
-    {
-        try
-        {
-            if (peerId != null)
-            {
-                api.Messages.Send(new MessagesSendParams
-                {
-                    RandomId = _random.Next(),
-                    PeerId = peerId,
-                    ReplyTo = replyTo,
-                    Message = message
-                });
-                L.M($"Sent response: {message}");
-            }
-            else
-            {
-                Console.WriteLine("peerId is NULL");
-            }
-        }
-        catch (Exception ex)
-        {
-            L.E(ex);
-        }
+    private void Answer(Message message, string text, long? replyTo = null) {
+        Answer(message.PeerId!.Value, text, replyTo);
     }
 
     // Метод для отправки периодических сообщений
-    private async void SendPeriodicMessages(object state)
-    {
-        try
-        {
-            if (_vkApi != null && _config != null && isEnabled)
-            {
+    private async void SendPeriodicMessages(object state) {
+        try {
+            if (isEnabled) {
                 var threads = await ServiceEndpoint.Wakaba.GetThreads();
-                if (threads != null && threads.Count > 0)
-                {
-                    var randomThreadIndex = _random.Next(threads.Count);
+                if (threads != null && threads.Count > 0) {
+                    var randomThreadIndex = Rand.Next(threads.Count);
                     var selectedThread = threads[randomThreadIndex];
                     var randomComment = selectedThread.Comment;
 
-                    if (!string.IsNullOrEmpty(randomComment))
-                    {
+                    if (!string.IsNullOrEmpty(randomComment)) {
                         // Удаление HTML-тегов
                         randomComment = StripHtml(randomComment);
 
                         // Обрезка сообщения до 999 символов
-                        if (randomComment.Length > 999)
-                        {
+                        if (randomComment.Length > 999) {
                             randomComment = randomComment.Substring(0, 999);
                         }
 
-                        foreach (var chat in _saves.Chats)
-                        {
+                        foreach (var chat in _saves.Chats) {
                             // Проверка, включены ли периодические сообщения для этого чата
-                            if (chat.Properties.IsMeme)
-                            {
-                                SendResponse(_vkApi, chat.PeerID, randomComment);
+                            if (chat.Properties.IsMeme) {
+                                Answer(chat.PeerId, randomComment);
                             }
                         }
                     }
                 }
             }
-        }
-        catch (Exception ex)
-        {
-            L.M($"Error sending periodic message: {ex.Message}");
+        } catch (Exception ex) {
+            L.I($"Error sending periodic message: {ex.Message}");
         }
     }
 
-    private void Update(object state)
-    {
-        _userRequests.Clear();
-    }
-
-    private string StripHtml(string input)
-    {
+    private string StripHtml(string input) {
         return Regex.Replace(HttpUtility.HtmlDecode(input), "<.*?>", string.Empty);
     }
 }

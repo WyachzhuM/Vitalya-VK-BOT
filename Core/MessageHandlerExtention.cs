@@ -798,7 +798,7 @@ public partial class MessageHandler {
 
     private static async Task<(string url, string? text)> GetWikiPage(string title) {
         using var client = new HttpClient();
-        var url = $"https://ru.wikipedia.org/w/api.php?action=query&format=json&prop=extracts" +
+        var url = $"https://ru.wikipedia.org/w/api.php?action=query&format=json&prop=extracts&redirects=true" +
                   $"&exintro=true&explaintext=true&titles={Uri.EscapeDataString(title)}";
 
 

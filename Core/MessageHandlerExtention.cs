@@ -798,14 +798,14 @@ public partial class MessageHandler {
 
     private static async Task<(string url, string? text)> GetWikiPage(string title) {
         using var client = new HttpClient();
-        var url = $"https://ru.wikipedia.org/w/api.php?action=query&format=json&prop=extracts&redirects=true" +
-                  $"&exintro=true&explaintext=true&titles={Uri.EscapeDataString(title)}";
+        var url = $"https://ru.wikipedia.org/w/api.php?action=query&format=json&prop=info|extracts&inprop=url" +
+                  $"&redirects=true&exintro=true&explaintext=true&titles={Uri.EscapeDataString(title)}";
 
 
         var response = await client.GetAsync(url);
 
         if (!response.IsSuccessStatusCode) {
-            return ($"ru.wikipedia.org/w/index.php?title={title}&action=edit", null);
+            return ($"ru.wikipedia.org/w/index.php?title={Uri.EscapeDataString(title)}&action=edit", null);
         }
 
         var jsonString = await response.Content.ReadAsStringAsync();
@@ -815,13 +815,19 @@ public partial class MessageHandler {
         var pages = (JObject)data["query"]!["pages"]!;
         foreach (var page in pages.Properties()) {
             var text = page.Value["extract"];
+            var canonicalurl = page.Value["canonicalurl"];
 
             if (text != null) {
-                return ($"\ud83d\udcc4 Источник: ru.wikipedia.org/wiki/{page.Value["title"]}", text.ToString());
+                // сосальная сеть втентакле не соответствует RFC 3986
+                var s = canonicalurl.Value<string>().Split("//")[1]
+                    .Replace("(", "%28")
+                    .Replace(")", "%29")
+                    .Replace("_", "%5F");
+                return ($"\ud83d\udcc4 Источник: {s}", text.ToString());
             }
         }
 
-        return ($"ru.wikipedia.org/w/index.php?title={title}&action=edit", null);
+        return ($"ru.wikipedia.org/w/index.php?title={Uri.EscapeDataString(title)}&action=edit", null);
     }
 
     private async Task HandleWikiCommand(Message message, string args) {

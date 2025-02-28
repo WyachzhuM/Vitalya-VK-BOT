@@ -1,9 +1,13 @@
-﻿using SixLabors.Fonts;
+﻿using System.Drawing.Imaging;
+using SixLabors.Fonts;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Drawing.Processing;
 using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp.Processing;
 using System.Numerics;
+using SixLabors.ImageSharp.Formats.Jpeg;
+using SixLabors.ImageSharp.Formats.Png;
+using vkbot_vitalya.Core;
 using vkbot_vitalya.Services.Generators.TextGeneration;
 using Font = SixLabors.Fonts.Font;
 
@@ -183,6 +187,30 @@ public class ImageProcessor
 
         return newImage;
     }
+
+    public static async Task ResizeAndCompressImage(Stream inputStream, Stream outputStream) {
+        using var image = await Image.LoadAsync(inputStream);
+        var originalWidth = image.Width;
+        var originalHeight = image.Height;
+        
+        var newWidth = originalWidth;
+        var newHeight = originalHeight;
+        
+        if (originalWidth > 2560 || originalHeight > 2048) {
+            var scaleWidth = 2560.0 / originalWidth;
+            var scaleHeight = 2048.0 / originalHeight;
+            var scale = Math.Min(scaleWidth, scaleHeight);
+        
+            newWidth = (int)(originalWidth * scale);
+            newHeight = (int)(originalHeight * scale);
+        }
+        
+        image.Mutate(ctx => ctx.Resize(newWidth, newHeight, KnownResamplers.Lanczos3));
+        var encoder = new JpegEncoder();
+
+        await image.SaveAsync(outputStream, encoder);
+    }
+
     public static async Task<Image<Rgba32>> Funeral(Image<Rgba32> image) {
         const int maxWidth = 306;
         const int maxHeight = 306;

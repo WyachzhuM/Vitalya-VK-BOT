@@ -4,6 +4,7 @@ using System.Net.Http.Headers;
 using SixLabors.ImageSharp.Formats.Jpeg;
 using vkbot_vitalya.Config;
 using vkbot_vitalya.Core;
+using vkbot_vitalya.Services.Generators;
 using VkNet;
 using VkNet.Model;
 using Image = SixLabors.ImageSharp.Image;
@@ -102,10 +103,13 @@ public class Vk
                 return null;
             }
 
-            await using var stream = await response.Content.ReadAsStreamAsync();
+            await using var originalImageStream = await response.Content.ReadAsStreamAsync();
+            using var imageStream = new MemoryStream();
+            await ImageProcessor.ResizeAndCompressImage(originalImageStream, imageStream);
+            imageStream.Position = 0;
             using var content = new MultipartFormDataContent();
 
-            var fileContent = new StreamContent(stream);
+            var fileContent = new StreamContent(imageStream);
             fileContent.Headers.ContentType = MediaTypeHeaderValue.Parse("image/jpeg");
             content.Add(fileContent, "photo", "image.jpeg");
 

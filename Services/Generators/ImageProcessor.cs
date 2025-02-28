@@ -248,11 +248,11 @@ public class ImageProcessor
                              * (DateTime.Parse("01.01.2006") - DateTime.Parse("01.01.1930")).Ticks))
             .ToString("d") + " - " + DateTime.Today.ToString("d"), font, Color.Black, new PointF(465, 500)));
 
-        // var message = await MessageProcessor.KeepUpConversation();
+        var message = await MessageProcessor.KeepUpConversation();
 
 
         grave.Mutate(i =>
-            i.DrawText("REST IN PENIS", SystemFonts.CreateFont("Georgia", 40, FontStyle.Italic), Color.Black,
+            i.DrawText(message, SystemFonts.CreateFont("Georgia", 40, FontStyle.Italic), Color.Black,
                 new PointF(480, 560)));
 
         return grave;

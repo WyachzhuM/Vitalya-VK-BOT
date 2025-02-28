@@ -1,73 +1,74 @@
 ﻿using System.Text.Json;
 using System.Text.Json.Serialization;
+using vkbot_vitalya.Core;
 
 namespace vkbot_vitalya.Config;
 
-public class Saves
-{
-    public Saves(IEnumerable<Chat> chats)
-    {
+public class Saves {
+    private const string SavesFilePath = "./saves.json";
+    public Saves(List<Chat> chats) {
         Chats = chats;
     }
 
     [JsonPropertyName("chats")]
-    public IEnumerable<Chat> Chats { get; set; }
+    public List<Chat> Chats { get; set; }
 
-    public static Saves Load(string filePath)
-    {
-        if (!File.Exists(filePath))
+    public static Saves Load() {
+        if (!File.Exists(SavesFilePath))
             return new Saves(new List<Chat>());
 
-        var jsonString = File.ReadAllText(filePath);
+        var jsonString = File.ReadAllText(SavesFilePath);
         var saves = JsonSerializer.Deserialize<Saves>(jsonString);
         return saves ?? new Saves(new List<Chat>());
     }
 
-    public void Save(string filePath)
-    {
+    public void Save() {
         var jsonString = JsonSerializer.Serialize(this, new JsonSerializerOptions { WriteIndented = true });
-        File.WriteAllText(filePath, jsonString);
+        File.WriteAllText(SavesFilePath, jsonString);
     }
 
-    public void AddChat(long peerId)
-    {
-        if (Chats.All(chat => chat.PeerId != peerId))
-        {
-            Chats.ToList().Add(new Chat(peerId, new ChatProperties(), new List<User>()));
+    public void AddChat(long peerId) {
+        if (Chats.All(chat => chat.PeerId != peerId)) {
+            Chats.Add(new Chat(peerId, new ChatProperties(), new List<User>()));
         }
     }
 
-    public void AddUserToChat(long peerId, long userId)
-    {
+    public void AddUserToChat(long peerId, long userId) {
         var chat = Chats.FirstOrDefault(chat => chat.PeerId == peerId);
-        if (chat != null && chat.Users.All(user => user.UserID != userId))
-        {
+        if (chat != null && chat.Users.All(user => user.Id != userId)) {
             chat.Users.Add(new User(userId));
         }
     }
+
+    public Chat GetChat(long peerId) {
+        foreach (var chat in Chats) {
+            if (chat.PeerId == peerId) {
+                return chat;
+            }
+        }
+
+        throw new Exception("Attempted to get chat before saving it");
+    }
 }
 
-public class Chat
-{
-    public Chat(long peerId, ChatProperties? properties = null, List<User>? users = null)
-    {
+public class Chat {
+    public Chat(long peerId, ChatProperties? properties = null, List<User>? users = null) {
         PeerId = peerId;
         Properties = properties ?? new ChatProperties();
         Users = users ?? [];
     }
 
-    [JsonPropertyName("chat_peer_id")]
+    [JsonPropertyName("peer_id")]
     public long PeerId { get; set; }
 
-    [JsonPropertyName("property")]
+    [JsonPropertyName("properties")]
     public ChatProperties Properties { get; set; }
 
     [JsonPropertyName("users")]
     public List<User> Users { get; set; }
 }
 
-public class ChatProperties
-{
+public class ChatProperties {
     [JsonPropertyName("anime")]
     public bool IsAnime { get; set; } = true;
 
@@ -85,12 +86,14 @@ public class ChatProperties
 
     [JsonPropertyName("location")]
     public bool IsLocation { get; set; } = true;
+    
+    [JsonPropertyName("response_probability")]
+    public double ResponseProbability { get; set; } = 0.2;
 
     public ChatProperties() { }
 }
 
-public record class User(long UserID)
-{
-    [JsonPropertyName("user_id")]
-    public long UserID { get; set; } = UserID;
+public record User(long Id) {
+    [JsonPropertyName("id")]
+    public long Id { get; set; } = Id;
 }

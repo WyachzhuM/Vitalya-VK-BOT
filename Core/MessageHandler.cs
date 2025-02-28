@@ -12,6 +12,9 @@ using VkNet.Model;
 
 namespace vkbot_vitalya;
 
+/// <summary>
+/// Обработчик сообщений для одного бота на все чаты
+/// </summary>
 public partial class MessageHandler {
     private static readonly Random Rand = new Random();
     private readonly Vk _vk;
@@ -20,13 +23,12 @@ public partial class MessageHandler {
     [Obsolete] private Timer _messageTimer, _updateTimer;
 
     public bool isEnabled = true;
-    private const string SavesFilePath = "./saves.json";
 
     public MessageHandler(Vk vk) {
         _vk = vk;
         ServiceEndpoint = new ServiceEndpoint();
         Processor = new ImageProcessor();
-        _saves = Saves.Load(SavesFilePath);
+        _saves = Saves.Load();
         // _updateTimer = new Timer(Update, null, TimeSpan.FromMinutes(10), TimeSpan.FromMinutes(10));
         // _messageTimer = new Timer(SendPeriodicMessages, null, TimeSpan.FromMinutes(60 * 2), TimeSpan.FromMinutes(60 * 2));
     }
@@ -38,18 +40,21 @@ public partial class MessageHandler {
         var sb = new StringBuilder();
         if (message.PeerId != message.FromId)
             sb.Append($"[{message.PeerId}] ");
-        sb.Append($"<{message.FromId}>: \"{message.Text}\"");
+        sb.Append($"<{message.FromId}> {message.Text}");
+        if (message.ForwardedMessages != null)
+            foreach (var forwarded in message.ForwardedMessages)
+                sb.Append($"\n-> <{forwarded.FromId}> {forwarded.Text}");
         if (message.Attachments.Count > 0)
             sb.Append($" + {message.Attachments.Count} attachments");
         L.D(sb);
-        
+
         if (message.Payload != null) {
             L.I("Got payload");
             HandlePayload(message);
             return;
         }
 
-        // MessageSaving(message);
+        MessageSaving(message);
 
         var text = Regex.Replace(message.Text, @"\s+", " ").Trim();
         var inDm = message.PeerId < 2000000000;
@@ -70,7 +75,7 @@ public partial class MessageHandler {
 
         if (!inDm && nameUsed == null) {
             // Simple text
-            if (Rand.NextSingle() < Conf.Instance.ResponseProbability) {
+            if (Rand.NextSingle() < _saves.GetChat(message.PeerId!.Value).Properties.ResponseProbability) {
                 var responseMessage = await MessageProcessor.KeepUpConversation(message);
                 Answer(message, responseMessage);
             }
@@ -93,7 +98,7 @@ public partial class MessageHandler {
         if (commandUsed == null) {
             // Mention without a command
             var sentencesResponseMessage = await MessageProcessor.KeepUpConversation(message);
-            Answer(message.PeerId!.Value, sentencesResponseMessage);
+            Answer(message, sentencesResponseMessage);
             // HandleHelpCommand(message);
             return;
         }
@@ -106,6 +111,7 @@ public partial class MessageHandler {
         if (args is { Length: > 0 }) {
             sb2.Append($", Args: '{string.Join("' '", args)}'");
         }
+
         L.D(sb2);
 
         switch (commandUsed) {
@@ -135,10 +141,10 @@ public partial class MessageHandler {
                 return;
             case "generate_sentences":
                 var sentencesResponseMessage = await MessageProcessor.KeepUpConversation();
-                Answer(message.PeerId!.Value, sentencesResponseMessage);
+                Answer(message, sentencesResponseMessage);
                 return;
             case "echo":
-                Answer(message.PeerId!.Value, message.Text);
+                Answer(message, message.Text);
                 return;
             case "chaos":
                 HandleChaosCommand(message);
@@ -155,8 +161,23 @@ public partial class MessageHandler {
             case "funeral":
                 HandleFuneralCommand(message);
                 return;
+            case "why":
+                Answer(message, "Потому что твоя мама жирная.");
+                return;
+            case "test":
+                L.I("asd");
+                var photo = await _vk.UploadImageFrom("https://cdn.donmai.us/original/ee/df/eedf2c5b58f49c83c06c359b45c592ec.jpg",
+                    new HttpClient());
+                _vk.Api.Messages.Send(new MessagesSendParams {
+                    RandomId = Rand.Next(),
+                    PeerId = message.PeerId!.Value,
+                    ReplyTo = message.Id,
+                    Message = "asd",
+                    Attachments = photo
+                });
+                return;
             default:
-                await HandlePhotoCommand(message, commandUsed);
+                HandlePhotoCommand(message, commandUsed);
                 return;
         }
     }
@@ -164,10 +185,11 @@ public partial class MessageHandler {
     private void MessageSaving(Message message) {
         _saves.AddChat(message.PeerId!.Value);
         _saves.AddUserToChat(message.PeerId!.Value, message.FromId.Value);
-        _saves.Save(SavesFilePath);
+        _saves.Save();
     }
 
-    private void Answer(long peerId, string text, long? replyTo = null) {
+    [Obsolete]
+    private void Answer(long peerId, string text) {
         if (text is not { Length: > 0 }) {
             L.E("SendResponse: Message is empty");
             return;
@@ -177,8 +199,7 @@ public partial class MessageHandler {
             _vk.Api.Messages.Send(new MessagesSendParams {
                 RandomId = Rand.Next(),
                 PeerId = peerId,
-                Message = text,
-                ReplyTo = replyTo
+                Message = text
             });
             L.I($"Sent response: {text}");
         } catch (Exception e) {
@@ -187,7 +208,22 @@ public partial class MessageHandler {
     }
 
     private void Answer(Message message, string text, long? replyTo = null) {
-        Answer(message.PeerId!.Value, text, replyTo);
+        if (text is not { Length: > 0 }) {
+            L.E("Answer: text is empty");
+            return;
+        }
+
+        try {
+            _vk.Api.Messages.Send(new MessagesSendParams {
+                RandomId = Rand.Next(),
+                PeerId = message.PeerId,
+                Message = text,
+                ReplyTo = replyTo
+            });
+            L.I($"Sent response: {text}");
+        } catch (Exception e) {
+            L.E("Failed to send response", e);
+        }
     }
 
     // Метод для отправки периодических сообщений

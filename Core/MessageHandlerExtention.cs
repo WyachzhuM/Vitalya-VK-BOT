@@ -49,7 +49,7 @@ public partial class MessageHandler {
             default:
                 L.W("Tried to handle photo command, but command doesn't need a photo. Generating random message.");
                 var responseMessage = await MessageProcessor.KeepUpConversation();
-                Answer(message.PeerId!.Value, responseMessage);
+                Answer(message, responseMessage);
                 break;
         }
     }
@@ -128,7 +128,7 @@ public partial class MessageHandler {
             }
         } else {
             L.I("No meme found.");
-            Answer(message.PeerId!.Value, "Извините, не удалось найти мемы по заданным ключевым словам.");
+            Answer(message, "Извините, не удалось найти мемы по заданным ключевым словам.");
         }
     }
 
@@ -143,9 +143,9 @@ public partial class MessageHandler {
                 $"Ветер: {weatherResponse.Wind?.Speed ?? 0} м/с\n" +
                 $"Влажность: {weatherResponse.Main?.Humidity ?? 0}%";
 
-            Answer(message.PeerId!.Value, weatherMessage, message.Id);
+            Answer(message, weatherMessage, message.Id);
         } else {
-            Answer(message.PeerId!.Value, "Извините, не удалось получить информацию о погоде.", message.Id);
+            Answer(message, "Извините, не удалось получить информацию о погоде.", message.Id);
         }
     }
 
@@ -230,7 +230,7 @@ public partial class MessageHandler {
             }
         } else {
             L.I("No anime image found.");
-            Answer(message.PeerId!.Value, "Извините, не удалось найти изображение аниме.");
+            Answer(message, "Извините, не удалось найти изображение аниме.");
         }
     }
 
@@ -300,7 +300,7 @@ public partial class MessageHandler {
             }
         } else {
             L.I("No anime image found.");
-            Answer(message.PeerId!.Value, "Извините, не удалось найти изображение аниме.");
+            Answer(message, "Извините, не удалось найти изображение аниме.");
         }
     }
 
@@ -349,7 +349,7 @@ public partial class MessageHandler {
         string[] commandParts = commandText.Split(new[] { ' ' }, 3);
 
         if (commandParts.Length < 3 || !commandParts[1].Equals("py", StringComparison.OrdinalIgnoreCase)) {
-            Answer(message.PeerId!.Value,
+            Answer(message,
                 "Пожалуйста, укажи Python-код после команды, например: `v py print('Hello')`");
             return;
         }
@@ -359,22 +359,22 @@ public partial class MessageHandler {
 
         var pythonCodeLower = pythonCode.ToLower();
         if (Regex.IsMatch(pythonCodeLower, @"(os|sys|subprocess|import|exec|eval|\bimp\b|\bort\b)")) {
-            Answer(message.PeerId!.Value,
+            Answer(message,
                 "Использование системных модулей, импорта или опасных функций запрещено.");
             return;
         }
 
         if (pythonCode.Length > 1000) {
-            Answer(message.PeerId!.Value, "Слишком длинный код (максимум 1000 символов).");
+            Answer(message, "Слишком длинный код (максимум 1000 символов).");
             return;
         }
 
         try {
             var output = await ExecutePythonCode(pythonCode);
-            Answer(message.PeerId!.Value, output.Length > 0 ? output : "Код выполнен, но вывода нет.");
+            Answer(message, output.Length > 0 ? output : "Код выполнен, но вывода нет.");
             L.I("Python code executed successfully.");
         } catch (Exception ex) {
-            Answer(message.PeerId!.Value, "Ошибка при выполнении кода: " + ex.Message);
+            Answer(message, "Ошибка при выполнении кода: " + ex.Message);
             L.I($"Error executing Python code: {ex.Message}");
         }
     }
@@ -407,11 +407,7 @@ public partial class MessageHandler {
     public async Task HandleFuneralCommand(Message message) {
         var sourceImage = await FindImageInMessage(message);
         if (sourceImage == null) {
-            _vk.Api.Messages.Send(new MessagesSendParams {
-                Message = "Некого хоронить!",
-                RandomId = Rand.Next(),
-                PeerId = message.PeerId!.Value
-            });
+            Answer(message, "Некого хоронить!");
             return;
         }
 
@@ -483,7 +479,7 @@ public partial class MessageHandler {
         string[] commandParts = commandText.Split(new[] { ' ' }, 2); // "v chaos"
 
         if (commandParts.Length < 2 || !commandParts[1].Equals("chaos", StringComparison.OrdinalIgnoreCase)) {
-            Answer(message.PeerId!.Value, "Просто напиши: `v chaos`");
+            Answer(message, "Просто напиши: `v chaos`");
             return;
         }
 
@@ -528,7 +524,7 @@ public partial class MessageHandler {
 
             L.I($"Chaos task assigned to {victim.FirstName}: {task}");
         } catch (Exception ex) {
-            Answer(message.PeerId!.Value, "Ошибка хаоса: " + ex.Message);
+            Answer(message, "Ошибка хаоса: " + ex.Message);
             L.I($"Error in chaos: {ex.Message}");
         }
     }
@@ -585,13 +581,13 @@ public partial class MessageHandler {
         var chat = _saves.Chats.FirstOrDefault(c => c.PeerId == message.PeerId);
 
         if (chat == null) {
-            Answer(message.PeerId!.Value, "Чат не найден.");
+            Answer(message, "Чат не найден.");
             return;
         }
 
         if (chat.Properties == null) {
             chat.Properties = new ChatProperties();
-            _saves.Save(SavesFilePath);
+            _saves.Save();
         }
 
         var b1 = CreateToggleButton(chat.Properties.IsAnime, "anime", "Аниме");
@@ -661,14 +657,14 @@ public partial class MessageHandler {
             case "chaos_done":
                 long doneVictim = payload.victim;
                 chaosScores[doneVictim] = chaosScores.GetValueOrDefault(doneVictim) + 1;
-                Answer(message.PeerId!.Value,
+                Answer(message,
                     $"Задание выполнено! [id{doneVictim}|Жертва] получает +1 хаос-очко. Текущий счёт: {chaosScores[doneVictim]}");
                 return;
 
             case "chaos_fail":
                 long failVictim = payload.victim;
                 chaosScores[failVictim] = chaosScores.GetValueOrDefault(failVictim) - 1;
-                Answer(message.PeerId!.Value,
+                Answer(message,
                     $"Задание провалено! [id{failVictim}|Жертва] теряет 1 хаос-очко. Текущий счёт: {chaosScores[failVictim]}");
                 return;
         }
@@ -676,19 +672,19 @@ public partial class MessageHandler {
         var userId = message.FromId.Value;
 
         if (!await IsUserAdmin(message.PeerId!.Value, userId)) {
-            Answer(message.PeerId!.Value, "Только админы могут изменять настройки.");
+            Answer(message, "Только админы могут изменять настройки.");
             return;
         }
 
         var chat = _saves.Chats.FirstOrDefault(c => c.PeerId == peerId);
         if (chat == null) {
-            Answer(message.PeerId!.Value, "Чат не найден.");
+            Answer(message, "Чат не найден.");
             return;
         }
 
         if (chat.Properties == null) {
             chat.Properties = new ChatProperties();
-            _saves.Save(SavesFilePath);
+            _saves.Save();
         }
 
         switch (command) {
@@ -712,13 +708,13 @@ public partial class MessageHandler {
                 break;
 
             default:
-                Answer(message.PeerId!.Value, "Неизвестная команда.");
+                Answer(message, "Неизвестная команда.");
                 return;
         }
 
-        _saves.Save(SavesFilePath);
+        _saves.Save();
 
-        Answer(message.PeerId!.Value, "Настройки обновлены.");
+        Answer(message, "Настройки обновлены.");
 
         // Отправляем обновленную клавиатуру
         HandleSettingsCommand(message);
@@ -833,26 +829,20 @@ public partial class MessageHandler {
     private async Task HandleWikiCommand(Message message, string args) {
         var (url, text) = await GetWikiPage(args);
         if (text == null) {
-            Answer(message.PeerId!.Value, $"Нет такой статьи, напиши сам: {url}");
+            Answer(message, $"Нет такой статьи, напиши сам: {url}");
             return;
         }
 
-        Answer(message.PeerId!.Value, $"{text.Trim()}\n\n{url}");
+        Answer(message, $"{text.Trim()}\n\n{url}");
     }
     
     private async Task HandleWhatCommand(Message message, string args) {
         var (_, text) = await GetWikiPage(args);
         if (text == null) {
-            Answer(message.PeerId!.Value, $"А я ебу что ли?");
+            Answer(message, $"А я ебу что ли?");
             return;
         }
 
-        Answer(message.PeerId!.Value, text.Trim());
-    }
-}
-
-public static class MessagesExtentions {
-    public static void Out(this Message message) {
-        L.I($"New message in chat {message.PeerId} from {message.FromId} (id: {message.Id})");
+        Answer(message, text.Trim());
     }
 }

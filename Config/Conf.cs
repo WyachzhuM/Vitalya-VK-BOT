@@ -18,19 +18,15 @@ public static class Conf {
     }
 
     public class Configuration {
-        public Configuration(List<string> botNames, double responseProbability, Dictionary<string, List<string>> commands,
+        public Configuration(List<string> botNames, Dictionary<string, List<string>> commands,
             Dictionary<string, JsonElement> additionalData) {
             BotNames = botNames;
-            ResponseProbability = responseProbability;
             Commands = commands;
             AdditionalData = additionalData;
         }
 
         [JsonPropertyName("bot_names")]
         public List<string> BotNames { get; init; }
-
-        [JsonPropertyName("response_probability")]
-        public double ResponseProbability { get; init; }
 
         [JsonPropertyName("commands")]
         public Dictionary<string, List<string>> Commands { get; init; }
@@ -51,4 +47,3 @@ public static class Conf {
         }
     }
 }
-

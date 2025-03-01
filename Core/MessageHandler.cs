@@ -57,7 +57,7 @@ public partial class MessageHandler {
         MessageSaving(message);
 
         var text = Regex.Replace(message.Text, @"\s+", " ").Trim();
-        var inDm = message.PeerId < 2000000000;
+        var needMention = message.PeerId > 2000000000 && message.ReplyMessage?.FromId != -(long)Auth.Instance.GroupId;
 
         string? nameUsed = null;
         string? commandUsed = null;
@@ -73,7 +73,7 @@ public partial class MessageHandler {
             }
         }
 
-        if (!inDm && nameUsed == null) {
+        if (needMention && nameUsed == null) {
             // Simple text
             if (Rand.NextSingle() < _saves.GetChat(message.PeerId!.Value).Properties.ResponseProbability) {
                 var responseMessage = await MessageProcessor.KeepUpConversation(message);

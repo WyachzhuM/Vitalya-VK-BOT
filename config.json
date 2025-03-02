@@ -1,4 +1,5 @@
 {
+  "auto_update_chats": false,
   "bot_names": [ "виталя", "вит", "валера", "@pan_propalbot", "[pan_propalbot|@pan_propalbot]", "[club227202883|@pan_propalbot]", "vit", "v" ],
   "commands": {
     "generate_sentences": [ "/generate_sentences", "пизди", "gen" ],
@@ -21,6 +22,7 @@
     "wiki": [ "wiki", "вики", "википедия" ],
     "what": [ "что такое", "расскажи про" ],
     "why": [ "почему" ],
-    "test": [ "test" ]
+    "test": [ "test" ],
+    "update_chat": [ "update_chat" ]
   }
 }

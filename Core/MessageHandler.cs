@@ -18,7 +18,6 @@ namespace vkbot_vitalya;
 public partial class MessageHandler {
     private static readonly Random Rand = new Random();
     private readonly Vk _vk;
-    private Saves _saves;
 
     [Obsolete] private Timer _messageTimer, _updateTimer;
 
@@ -28,7 +27,6 @@ public partial class MessageHandler {
         _vk = vk;
         ServiceEndpoint = new ServiceEndpoint();
         Processor = new ImageProcessor();
-        _saves = Saves.Load();
         // _updateTimer = new Timer(Update, null, TimeSpan.FromMinutes(10), TimeSpan.FromMinutes(10));
         // _messageTimer = new Timer(SendPeriodicMessages, null, TimeSpan.FromMinutes(60 * 2), TimeSpan.FromMinutes(60 * 2));
     }
@@ -37,10 +35,22 @@ public partial class MessageHandler {
     private ImageProcessor Processor { get; set; }
 
     public async Task HandleMessage(Message message) {
+        var chatCache = _vk.Saves.Chats.FirstOrDefault(c => c.PeerId == message.PeerId);
+        if (chatCache == null) {
+            _vk.Saves.AddChat(message.PeerId!.Value);
+            await _vk.UpdateChat(message.PeerId!.Value);
+            chatCache = _vk.Saves.Chats.FirstOrDefault(c => c.PeerId == message.PeerId)!;
+        }
+        var user = chatCache.Users.FirstOrDefault(u => u.Id == message.FromId);
+        if (user == null) {
+            await _vk.UpdateChat(message.PeerId!.Value);
+            user = chatCache.Users.FirstOrDefault(u => u.Id == message.FromId)!;
+        }
+        var sender = user.ToString();
         var sb = new StringBuilder();
         if (message.PeerId != message.FromId)
             sb.Append($"[{message.PeerId}] ");
-        sb.Append($"<{message.FromId}> {message.Text}");
+        sb.Append($"<{sender}> {message.Text}");
         if (message.ForwardedMessages != null)
             foreach (var forwarded in message.ForwardedMessages)
                 sb.Append($"\n-> <{forwarded.FromId}> {forwarded.Text}");
@@ -53,8 +63,6 @@ public partial class MessageHandler {
             HandlePayload(message);
             return;
         }
-
-        MessageSaving(message);
 
         var text = Regex.Replace(message.Text, @"\s+", " ").Trim();
         var needMention = message.PeerId > 2000000000 && message.ReplyMessage?.FromId != -(long)Auth.Instance.GroupId;
@@ -75,7 +83,7 @@ public partial class MessageHandler {
 
         if (needMention && nameUsed == null) {
             // Simple text
-            if (Rand.NextSingle() < _saves.GetChat(message.PeerId!.Value).Properties.ResponseProbability) {
+            if (Rand.NextSingle() < _vk.Saves.GetChat(message.PeerId!.Value).Properties.ResponseProbability) {
                 var responseMessage = await MessageProcessor.KeepUpConversation(message);
                 Answer(message, responseMessage);
             }
@@ -165,16 +173,9 @@ public partial class MessageHandler {
                 Answer(message, "Потому что твоя мама жирная.");
                 return;
             case "test":
-                L.I("asd");
-                var photo = await _vk.UploadImageFrom("https://cdn.donmai.us/original/ee/df/eedf2c5b58f49c83c06c359b45c592ec.jpg",
-                    new HttpClient());
-                _vk.Api.Messages.Send(new MessagesSendParams {
-                    RandomId = Rand.Next(),
-                    PeerId = message.PeerId!.Value,
-                    ReplyTo = message.Id,
-                    Message = "asd",
-                    Attachments = photo
-                });
+                return;
+            case "update_chat":
+                HandleUpdateChat(message, aliasUsed, args);
                 return;
             default:
                 HandlePhotoCommand(message, commandUsed);
@@ -182,11 +183,6 @@ public partial class MessageHandler {
         }
     }
 
-    private void MessageSaving(Message message) {
-        _saves.AddChat(message.PeerId!.Value);
-        _saves.AddUserToChat(message.PeerId!.Value, message.FromId.Value);
-        _saves.Save();
-    }
 
     [Obsolete]
     private void Answer(long peerId, string text) {
@@ -245,7 +241,7 @@ public partial class MessageHandler {
                             randomComment = randomComment.Substring(0, 999);
                         }
 
-                        foreach (var chat in _saves.Chats) {
+                        foreach (var chat in _vk.Saves.Chats) {
                             // Проверка, включены ли периодические сообщения для этого чата
                             if (chat.Properties.IsMeme) {
                                 Answer(chat.PeerId, randomComment);

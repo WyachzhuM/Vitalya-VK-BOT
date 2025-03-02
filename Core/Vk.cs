@@ -4,16 +4,18 @@ using System.Net.Http.Headers;
 using SixLabors.ImageSharp.Formats.Jpeg;
 using vkbot_vitalya.Config;
 using vkbot_vitalya.Core;
+using vkbot_vitalya.Mappers;
 using vkbot_vitalya.Services.Generators;
 using VkNet;
 using VkNet.Model;
 using Image = SixLabors.ImageSharp.Image;
-using User = VkNet.Model.User;
+using User = vkbot_vitalya.Config.User;
 
 public class Vk
 {
 
     public readonly VkApi Api = new VkApi();
+    public readonly Saves Saves = Saves.Load();
 
     /// Падежи
     /// Nom - Именительный
@@ -132,5 +134,44 @@ public class Vk
             L.E($"Failed to download image from {imageUrl}", e);
             return null;
         }
+    }
+
+    public async Task<List<User>> GetChatMembers(long peerId) {
+        if (Conf.Instance.AutoUpdateChats) {
+            await UpdateChat(peerId);
+        }
+
+        var chat = Saves.Chats.FirstOrDefault(c => c.PeerId == peerId);
+        if (chat != null)
+            return chat.Users;
+        await UpdateChat(peerId);
+        return Saves.Chats.FirstOrDefault(c => c.PeerId == peerId)!.Users;
+    }
+
+    #region 💩
+
+    private static readonly string[] NameFields = new string[12];
+
+    static Vk() {
+        var i = 0;
+        foreach (var name in Enum.GetNames(typeof(Declension))) {
+            NameFields[i] = "first_name_" + name.ToLower();
+            NameFields[i + 1] = "last_name_" + name.ToLower();
+            i += 2;
+        }
+    }
+
+    #endregion 💩
+
+    public async Task UpdateChat(long peerId) {
+        var result = await Api.Messages.GetConversationMembersAsync(peerId, fields: NameFields);
+        var vkUsers = result.Profiles;
+        Saves.Chats.FirstOrDefault(c => c.PeerId == peerId)!.Users.Clear();
+        foreach (var vkUser in vkUsers) {
+            var user = UserMapper.Map<User>(vkUser);
+            Saves.AddUserToChat(peerId, user);
+        }
+
+        Saves.Save();
     }
 }

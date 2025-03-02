@@ -31,6 +31,8 @@ public static class Conf {
         [JsonPropertyName("commands")]
         public Dictionary<string, List<string>> Commands { get; init; }
 
+        [JsonPropertyName("auto_update_chats")]
+        public bool AutoUpdateChats { get; init; }
         public Dictionary<string, JsonElement> AdditionalData { get; init; }
 
         public static Configuration Load(string path) {

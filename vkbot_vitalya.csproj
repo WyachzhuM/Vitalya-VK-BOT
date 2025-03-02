@@ -26,6 +26,7 @@
 
   <ItemGroup>
     <PackageReference Include="2Ch-API-Client" Version="1.0.7" />
+    <PackageReference Include="AutoMapper" Version="14.0.0" />
     <PackageReference Include="log4net" Version="3.0.4" />
     <PackageReference Include="log4net.Ext.Json" Version="3.0.3" />
     <PackageReference Include="SixLabors.Fonts" Version="2.0.4" />

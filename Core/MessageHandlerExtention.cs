@@ -486,10 +486,10 @@ public partial class MessageHandler {
         L.I("Starting chaos...");
 
         try {
-            var members = await _vk.Api.Messages.GetConversationMembersAsync(message.PeerId!.Value);
-            var victim = members.Profiles.OrderBy(x => Guid.NewGuid()).First();
+            var members = await _vk.GetChatMembers(message.PeerId!.Value);
+            var victim = members.OrderBy(x => Guid.NewGuid()).First();
 
-            var randomMember2 = members.Profiles.OrderBy(x => Guid.NewGuid()).First();
+            var randomMember2 = members.OrderBy(x => Guid.NewGuid()).First();
 
             var task = GenerateChaosTask(Vk.PingUser(randomMember2));
 
@@ -578,7 +578,7 @@ public partial class MessageHandler {
     #region Settings
 
     private async void HandleSettingsCommand(Message message) {
-        var chat = _saves.Chats.FirstOrDefault(c => c.PeerId == message.PeerId);
+        var chat = _vk.Saves.Chats.FirstOrDefault(c => c.PeerId == message.PeerId);
 
         if (chat == null) {
             Answer(message, "Чат не найден.");
@@ -587,7 +587,7 @@ public partial class MessageHandler {
 
         if (chat.Properties == null) {
             chat.Properties = new ChatProperties();
-            _saves.Save();
+            _vk.Saves.Save();
         }
 
         var b1 = CreateToggleButton(chat.Properties.IsAnime, "anime", "Аниме");
@@ -676,7 +676,7 @@ public partial class MessageHandler {
             return;
         }
 
-        var chat = _saves.Chats.FirstOrDefault(c => c.PeerId == peerId);
+        var chat = _vk.Saves.Chats.FirstOrDefault(c => c.PeerId == peerId);
         if (chat == null) {
             Answer(message, "Чат не найден.");
             return;
@@ -684,7 +684,7 @@ public partial class MessageHandler {
 
         if (chat.Properties == null) {
             chat.Properties = new ChatProperties();
-            _saves.Save();
+            _vk.Saves.Save();
         }
 
         switch (command) {
@@ -712,7 +712,7 @@ public partial class MessageHandler {
                 return;
         }
 
-        _saves.Save();
+        _vk.Saves.Save();
 
         Answer(message, "Настройки обновлены.");
 
@@ -722,22 +722,7 @@ public partial class MessageHandler {
 
     #endregion
 
-    #region 💩
-
-    private static string[] ЕБАНАЯХУЙНЯ = new string[12];
-
-    static MessageHandler() {
-        var i = 0;
-        foreach (var name in Enum.GetNames(typeof(Vk.Declension))) {
-            ЕБАНАЯХУЙНЯ[i] = "first_name_" + name.ToLower();
-            ЕБАНАЯХУЙНЯ[i + 1] = "last_name_" + name.ToLower();
-            i += 2;
-        }
-    }
-
-    #endregion 💩
-
-    private void HandleWhoCommand(Message message, string alias, string args) {
+    private async Task HandleWhoCommand(Message message, string alias, string args) {
         string[] prefixes = [
             "Уверен, что",
             "Определенно",
@@ -778,8 +763,7 @@ public partial class MessageHandler {
         text = Regex.Replace(text, @"\bтвоём\b", "моём", RegexOptions.IgnoreCase);
         text = text.Replace('?', '.');
 
-        var users = _vk.Api.Messages.GetConversationMembers(message.PeerId!.Value, fields: ЕБАНАЯХУЙНЯ)
-            .Profiles;
+        var users = await _vk.GetChatMembers(message.PeerId!.Value);
         var answerUser = users[Rand.Next(users.Count)];
         var prefix = prefixes[Rand.Next(prefixes.Length)];
         var decl = alias switch {
@@ -844,5 +828,10 @@ public partial class MessageHandler {
         }
 
         Answer(message, text.Trim());
+    }
+
+    private void HandleUpdateChat(Message message, string alias, string args) {
+        _vk.UpdateChat(message.PeerId!.Value);
+        Answer(message, "Обновил список участников чата.");
     }
 }

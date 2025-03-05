@@ -10,9 +10,8 @@ namespace vkbot_vitalya;
 
 public static class Program {
     private static MessageHandler _handler;
-    private static ExceptDict _exceptDict;
     private static MessageSaver _messageSaver;
-    private static Vk _vk = new Vk();
+    private static Bot _bot = new Bot();
 
     // Displays warn if set to true
     public static bool IgnoreTagsBlacklist = true;
@@ -22,23 +21,21 @@ public static class Program {
     private static ManualResetEvent _shutdownEvent = new ManualResetEvent(false);
 
     public static void Main(string[] args) {
-
         Console.OutputEncoding = Encoding.Unicode;
         Console.ForegroundColor = ConsoleColor.White;
 
         L.I($"Bot started at {DateTime.Now}");
-        
+
         if (IgnoreTagsBlacklist) {
             L.W("FORBIDDEN TAGS IGNORED");
         }
 
-        _handler = new MessageHandler(_vk);
-        _exceptDict = new ExceptDict();
+        _handler = new MessageHandler(_bot);
         _messageSaver = new MessageSaver(_savedMessagesFolder);
 
 
         try {
-            _vk.Api.Authorize(new ApiAuthParams { AccessToken = Auth.Instance.AccessToken });
+            _bot.Api.Authorize(new ApiAuthParams { AccessToken = Auth.Instance.AccessToken });
             L.I("Authorization successful");
         } catch (Exception ex) {
             L.I($"Authorization failed: {ex.Message}");
@@ -47,7 +44,7 @@ public static class Program {
 
         SetupSignalHandling();
         try {
-            var longPollServer = _vk.Api.Groups.GetLongPollServer(Auth.Instance.GroupId);
+            var longPollServer = _bot.Api.Groups.GetLongPollServer(Auth.Instance.GroupId);
             StartLongPoll(longPollServer);
         } catch (Exception ex) {
             L.I($"Error in long poll: {ex.Message}");
@@ -63,7 +60,7 @@ public static class Program {
 
         while (true) {
             try {
-                var poll = await _vk.Api.Groups.GetBotsLongPollHistoryAsync(
+                var poll = await _bot.Api.Groups.GetBotsLongPollHistoryAsync(
                     new BotsLongPollHistoryParams {
                         Server = longPollServer.Server,
                         Ts = lastUpdateTs,
@@ -77,7 +74,7 @@ public static class Program {
                     if (update.Instance is MessageNew messageNew) {
                         var message = messageNew.Message;
 
-                        var needSave = !_exceptDict.GetExceptions().Any(message.Text.StartsWith);
+                        var needSave = !ExceptDict.Get().Any(message.Text.StartsWith);
 
                         // Save message to file
                         if (needSave && _messageSaver != null)
@@ -95,7 +92,7 @@ public static class Program {
                 lastUpdateTs = poll.Ts;
             } catch (LongPollKeyExpiredException) {
                 // Refresh longPollServer for correct work
-                longPollServer = _vk.Api.Groups.GetLongPollServer(Auth.Instance.GroupId);
+                longPollServer = _bot.Api.Groups.GetLongPollServer(Auth.Instance.GroupId);
             } catch (Exception e) {
                 L.E("LongPoll error", e);
             }

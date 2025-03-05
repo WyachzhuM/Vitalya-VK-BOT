@@ -1,32 +1,25 @@
 ﻿namespace vkbot_vitalya.Services.Generators.TextGeneration;
 
-public class WordAssociations
-{
+public class WordAssociations {
     private static Dictionary<string, Dictionary<string, int>> _associations;
 
     public static string assocFilePath = "./associations.json";
 
-    public WordAssociations()
-    {
+    public WordAssociations() {
         _associations = new Dictionary<string, Dictionary<string, int>>(StringComparer.OrdinalIgnoreCase);
 
         LoadFromFile(assocFilePath);
     }
 
     // Метод для добавления связи между двумя словами
-    public static void AddAssociation(string word1, string word2)
-    {
-        if (!_associations.ContainsKey(word1))
-        {
+    public static void AddAssociation(string word1, string word2) {
+        if (!_associations.ContainsKey(word1)) {
             _associations[word1] = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
         }
 
-        if (_associations[word1].ContainsKey(word2))
-        {
+        if (_associations[word1].ContainsKey(word2)) {
             _associations[word1][word2]++;
-        }
-        else
-        {
+        } else {
             _associations[word1][word2] = 1;
         }
     }
@@ -42,21 +35,18 @@ public class WordAssociations
     }
 
 
-    public static void SaveToFile(string path)
-    {
+    public static void SaveToFile(string path) {
         var json = Newtonsoft.Json.JsonConvert.SerializeObject(_associations);
         File.WriteAllText(path, json);
     }
 
-    public void LoadFromFile(string path)
-    {
-        if (File.Exists(path))
-        {
+    public void LoadFromFile(string path) {
+        if (File.Exists(path)) {
             var json = File.ReadAllText(path);
-            _associations = Newtonsoft.Json.JsonConvert.DeserializeObject<Dictionary<string, Dictionary<string, int>>>(json) ?? new Dictionary<string, Dictionary<string, int>>(StringComparer.OrdinalIgnoreCase);
-        }
-        else
-        {
+            _associations =
+                Newtonsoft.Json.JsonConvert.DeserializeObject<Dictionary<string, Dictionary<string, int>>>(json) ??
+                new Dictionary<string, Dictionary<string, int>>(StringComparer.OrdinalIgnoreCase);
+        } else {
             SaveToFile(path);
         }
     }

@@ -25,14 +25,13 @@ public static class Conf {
             AdditionalData = additionalData;
         }
 
-        [JsonPropertyName("bot_names")]
-        public List<string> BotNames { get; init; }
+        [JsonPropertyName("bot_names")] public List<string> BotNames { get; init; }
 
-        [JsonPropertyName("commands")]
-        public Dictionary<string, List<string>> Commands { get; init; }
+        [JsonPropertyName("commands")] public Dictionary<string, List<string>> Commands { get; init; }
 
         [JsonPropertyName("auto_update_chats")]
         public bool AutoUpdateChats { get; init; }
+
         public Dictionary<string, JsonElement> AdditionalData { get; init; }
 
         public static Configuration Load(string path) {

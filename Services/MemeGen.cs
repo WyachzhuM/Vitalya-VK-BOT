@@ -6,17 +6,12 @@ using vkbot_vitalya.Core;
 namespace vkbot_vitalya.Services;
 
 [Obsolete]
-public class MemeGen
-{
-    public MemeGen()
-    {
-        if (Auth.Instance.MemeGenApiKey == null)
-        {
+public class MemeGen {
+    public MemeGen() {
+        if (Auth.Instance.MemeGenApiKey == null) {
             L.I("Put the meme apikey into auth.json file!");
             ApiKey = string.Empty;
-        }
-        else
-        {
+        } else {
             ApiKey = Auth.Instance.MemeGenApiKey;
             Client.DefaultRequestHeaders.Add("x-api-key", ApiKey);
         }
@@ -28,12 +23,11 @@ public class MemeGen
     /// <summary>
     /// Search memes from https://api.apileague.com/search-memes
     /// </summary>
-    public async Task<MemeGenResponse?> SearchMemes(string keywords, int number, MemeType type)
-    {
-        try
-        {
+    public async Task<MemeGenResponse?> SearchMemes(string keywords, int number, MemeType type) {
+        try {
             var memetype = GetMemeTypeString(type);
-            var url = $"https://api.apileague.com/search-memes?keywords={keywords}&number={number}&media-type={memetype}";
+            var url =
+                $"https://api.apileague.com/search-memes?keywords={keywords}&number={number}&media-type={memetype}";
 
             L.I($"Request form: " + url);
 
@@ -43,18 +37,13 @@ public class MemeGen
 
             var memes = JsonSerializer.Deserialize<MemeGenResponse>(responseBody);
 
-            if (memes != null)
-            {
+            if (memes != null) {
                 L.I($"Finded {memes.Memes.Count} memes!");
                 return memes;
             }
-            else
-            {
-                return null;
-            }
-        }
-        catch (HttpRequestException e)
-        {
+
+            return null;
+        } catch (HttpRequestException e) {
             L.E($"Failed to find meme", e);
             return null;
         }
@@ -63,8 +52,7 @@ public class MemeGen
     /// <summary>
     /// Get random meme from https://api.apileague.com/retrieve-random-meme
     /// </summary>
-    public async Task<Meme?> RandomMeme(string keywords, MemeType type)
-    {
+    public async Task<Meme?> RandomMeme(string keywords, MemeType type) {
         var memetype = string.Empty;
         if (type == MemeType.Image)
             memetype = "jpeg";
@@ -76,53 +64,41 @@ public class MemeGen
 
         var url = $"https://api.apileague.com/retrieve-random-meme?keywords={keywords}&media-type={memetype}";
 
-        try
-        {
+        try {
             var response = await Client.GetAsync(url);
             response.EnsureSuccessStatusCode();
             var responseBody = await response.Content.ReadAsStringAsync();
 
             var meme = JsonSerializer.Deserialize<Meme>(responseBody);
 
-            if (meme != null)
-            {
+            if (meme != null) {
                 return meme;
             }
-            else
-            {
-                return null;
-            }
-        }
-        catch (HttpRequestException e)
-        {
+
+            return null;
+        } catch (HttpRequestException e) {
             L.E("", e);
             return null;
         }
     }
 
-    public async void Test()
-    {
+    public async void Test() {
         var url = "https://api.apileague.com/search-memes?keywords=rocket&number=3";
         var apiKey = "1ba7b7af9d514fb6aa0b4df448ae3c22";
 
-        try
-        {
+        try {
             var response = await Client.GetAsync(url);
             response.EnsureSuccessStatusCode();
             var responseBody = await response.Content.ReadAsStringAsync();
 
             L.I(responseBody);
-        }
-        catch (HttpRequestException e)
-        {
+        } catch (HttpRequestException e) {
             L.E("", e);
         }
     }
 
-    private string GetMemeTypeString(MemeType type)
-    {
-        return type switch
-        {
+    private string GetMemeTypeString(MemeType type) {
+        return type switch {
             MemeType.Video => "mp4",
             MemeType.Gif => "gif",
             _ => "image",
@@ -130,32 +106,24 @@ public class MemeGen
     }
 }
 
-public class MemeGenResponse
-{
-    public MemeGenResponse()
-    {
+public class MemeGenResponse {
+    public MemeGenResponse() {
     }
 
-    public MemeGenResponse(List<Meme> memes, int available)
-    {
+    public MemeGenResponse(List<Meme> memes, int available) {
         Memes = memes;
         Available = available;
     }
 
-    [JsonPropertyName("memes")]
-    public List<Meme> Memes { get; set; }
-    [JsonPropertyName("available")]
-    public int Available { get; set; }
+    [JsonPropertyName("memes")] public List<Meme> Memes { get; set; }
+    [JsonPropertyName("available")] public int Available { get; set; }
 }
 
-public class Meme
-{
-    public Meme()
-    {
+public class Meme {
+    public Meme() {
     }
 
-    public Meme(string description, string url, string type, int width, int height, int ratio)
-    {
+    public Meme(string description, string url, string type, int width, int height, int ratio) {
         Description = description;
         Url = url;
         Type = type;
@@ -164,34 +132,25 @@ public class Meme
         Ratio = ratio;
     }
 
-    [JsonPropertyName("description")]
-    public string Description { get; set; }
-    [JsonPropertyName("url")]
-    public string Url { get; set; }
-    [JsonPropertyName("type")]
-    public string Type { get; set; }
-    [JsonPropertyName("width")]
-    public int Width { get; set; }
-    [JsonPropertyName("height")]
-    public int Height { get; set; }
-    [JsonPropertyName("ratio")]
-    public double Ratio { get; set; }
+    [JsonPropertyName("description")] public string Description { get; set; }
+    [JsonPropertyName("url")] public string Url { get; set; }
+    [JsonPropertyName("type")] public string Type { get; set; }
+    [JsonPropertyName("width")] public int Width { get; set; }
+    [JsonPropertyName("height")] public int Height { get; set; }
+    [JsonPropertyName("ratio")] public double Ratio { get; set; }
 
-    public MemeType GetMemeType()
-    {
+    public MemeType GetMemeType() {
         if (Type == "video/mp4")
             return MemeType.Video;
         if (Type == "image/png")
             return MemeType.Image;
         if (Type == "image/jpeg")
             return MemeType.Image;
-        else
-            return MemeType.Image;
+        return MemeType.Image;
     }
 }
 
-public enum MemeType
-{
+public enum MemeType {
     Image,
     Video,
     Gif

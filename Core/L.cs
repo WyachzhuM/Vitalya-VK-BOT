@@ -2,7 +2,6 @@
 using log4net.Appender;
 using log4net.Config;
 using log4net.Core;
-using vkbot_vitalya.Core;
 
 [assembly: XmlConfigurator(ConfigFile = "App.config")]
 

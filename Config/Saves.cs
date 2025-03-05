@@ -1,25 +1,24 @@
 ﻿using System.Text.Json;
 using System.Text.Json.Serialization;
-using vkbot_vitalya.Core;
 
 namespace vkbot_vitalya.Config;
 
 public class Saves {
-    private const string SavesFilePath = "./saves.json";
+    private const string SavesFilePath = "saves.json";
+
     public Saves(List<Chat> chats) {
         Chats = chats;
     }
 
-    [JsonPropertyName("chats")]
-    public List<Chat> Chats { get; set; }
+    [JsonPropertyName("chats")] public List<Chat> Chats { get; set; }
 
     public static Saves Load() {
         if (!File.Exists(SavesFilePath))
-            return new Saves(new List<Chat>());
+            return new Saves([]);
 
         var jsonString = File.ReadAllText(SavesFilePath);
         var saves = JsonSerializer.Deserialize<Saves>(jsonString);
-        return saves ?? new Saves(new List<Chat>());
+        return saves ?? new Saves([]);
     }
 
     public void Save() {
@@ -35,17 +34,13 @@ public class Saves {
 
     public void AddUserToChat(long peerId, User user) {
         var chat = Chats.FirstOrDefault(chat => chat.PeerId == peerId);
-        if (chat != null && chat.Users.All(u => u.Id != user.Id)) {
-            chat.Users.Add(user);
-        }
+        if (chat != null && chat.Users.All(u => u.Id != user.Id)) chat.Users.Add(user);
     }
 
     public Chat GetChat(long peerId) {
-        foreach (var chat in Chats) {
-            if (chat.PeerId == peerId) {
+        foreach (var chat in Chats)
+            if (chat.PeerId == peerId)
                 return chat;
-            }
-        }
 
         throw new Exception("Attempted to get chat before saving it");
     }
@@ -78,10 +73,8 @@ public class ChatProperties {
 
     [JsonPropertyName("location")] public bool IsLocation { get; set; } = true;
 
-    [JsonPropertyName("response_probability")] public double ResponseProbability { get; set; } = 0.2;
-
-    public ChatProperties() {
-    }
+    [JsonPropertyName("response_probability")]
+    public double ResponseProbability { get; set; } = 0.2;
 }
 
 public record User(

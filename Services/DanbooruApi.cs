@@ -12,13 +12,11 @@ namespace vkbot_vitalya.Services;
 /// <summary>
 /// это было сложно, но я это сделал
 /// </summary>
-public class DanbooruApi
-{
+public class DanbooruApi {
     private static readonly TimeSpan SECONDS_BETWEEN_INVOKES = TimeSpan.FromSeconds(30);
-    private static readonly Random RAND = new Random();
+    private static readonly Random Rand = new Random();
 
-    private readonly List<string> forbiddenTags = new List<string>()
-    {
+    private readonly List<string> forbiddenTags = [
         "futanari", "gay", "furry", "penis", "testicles", "huge penis", "erection", "inflation",
         "loli", "child on child", "yaoi", "2boys", "nazi", "trap", "succubus", "corpse",
         "coprophilic", "cunt", "multiple boys", "yaoi", "2boys", "multiple_boys", "male_penetrated",
@@ -26,17 +24,18 @@ public class DanbooruApi
         "scat", "diarrhea", "poop", "squat toilet", "pee", "toilet use", "guro", "ero guro",
         "vomit", "fart", "tentacles", "peeing", "personality excrement", "defecating",
         "enema", "execution", "hazbin_hotel"
-    };
+    ];
 
-    public DanbooruApi()
-    {
+    public DanbooruApi() {
         ApiKey = Auth.Instance.DanbooruApikey;
         Login = Auth.Instance.DanbooruLogin;
 
-        Client = ProxyClient.GetProxyHttpClient(Auth.Instance.ProxyAdress, new NetworkCredential(Auth.Instance.ProxyLogin, Auth.Instance.ProxyPassword), "vk-bot-vitalya");
+        Client = ProxyClient.GetProxyHttpClient(Auth.Instance.ProxyAdress,
+            new NetworkCredential(Auth.Instance.ProxyLogin, Auth.Instance.ProxyPassword), "vk-bot-vitalya");
 
         var byteArray = Encoding.ASCII.GetBytes($"{Login}:{ApiKey}");
-        Client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic", Convert.ToBase64String(byteArray));
+        Client.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue("Basic", Convert.ToBase64String(byteArray));
     }
 
     public HttpClient Client { get; }
@@ -54,10 +53,11 @@ public class DanbooruApi
             var excludeTagsArray = excludeTags.Split(',', StringSplitOptions.RemoveEmptyEntries);
 
             for (var i = 0; i < maxAttempts; i++) {
-                var page = RAND.Next(1, 1000);
+                var page = Rand.Next(1, 1000);
 
                 var tagList = string.IsNullOrWhiteSpace(tags) && !Program.IgnoreTagsBlacklist
-                    ? excludeTagsArray.Skip(i % (excludeTagsArray.Length / 2) * 2).Take(2).Select(tag => "-" + Uri.EscapeDataString(tag))
+                    ? excludeTagsArray.Skip(i % (excludeTagsArray.Length / 2) * 2).Take(2)
+                        .Select(tag => "-" + Uri.EscapeDataString(tag))
                     : tags.Split(',', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(Uri.EscapeDataString);
 
                 var joinedTags = string.Join("+", tagList);
@@ -82,7 +82,7 @@ public class DanbooruApi
 
                 L.I($"Posts found: {posts.Count}");
 
-                var post = posts[RAND.Next(posts.Count)];
+                var post = posts[Rand.Next(posts.Count)];
 
                 var isEnough = false;
 
@@ -102,7 +102,7 @@ public class DanbooruApi
                     L.E($"null url for tags: {joinedTags}");
                     continue;
                 }
-                
+
                 // Добавляем проверку типа файла
                 if (post.FileUrl.EndsWith(".jpg") || post.FileUrl.EndsWith(".jpeg") ||
                     post.FileUrl.EndsWith(".png") || post.FileUrl.EndsWith(".gif")) {
@@ -111,6 +111,7 @@ public class DanbooruApi
 
                 L.I($"Unsupported file type: {post.FileUrl}");
             }
+
             return null;
         } catch (Exception e) {
             L.E("Failed to find image", e);
@@ -119,24 +120,18 @@ public class DanbooruApi
     }
 }
 
-public class Post
-{
-    public Post(int id, string fileUrl, string previewFileUrl, string tagString)
-    {
+public class Post {
+    public Post(int id, string fileUrl, string previewFileUrl, string tagString) {
         Id = id;
         FileUrl = fileUrl;
         PreviewFileUrl = previewFileUrl;
         TagString = tagString;
     }
 
-    [JsonPropertyName("id")]
-    public int Id { get; set; }
-    [JsonPropertyName("file_url")]
-    public string? FileUrl { get; set; }
-    [JsonPropertyName("preview_file_url")]
-    public string PreviewFileUrl { get; set; }
-    [JsonPropertyName("tag_string")]
-    public string TagString { get; set; }
+    [JsonPropertyName("id")] public int Id { get; set; }
+    [JsonPropertyName("file_url")] public string? FileUrl { get; set; }
+    [JsonPropertyName("preview_file_url")] public string PreviewFileUrl { get; set; }
+    [JsonPropertyName("tag_string")] public string TagString { get; set; }
 
     public override string ToString() => $"Id: {Id}, FileUrl: {FileUrl}, Tags: {TagString}";
 }

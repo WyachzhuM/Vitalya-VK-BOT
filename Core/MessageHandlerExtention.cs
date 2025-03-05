@@ -4,7 +4,6 @@ using SixLabors.ImageSharp.PixelFormats;
 using System.Text;
 using vkbot_vitalya.Config;
 using vkbot_vitalya.Services;
-using VkNet;
 using VkNet.Model;
 using vkbot_vitalya.Services.Generators.TextGeneration;
 using System.Diagnostics;
@@ -22,41 +21,12 @@ namespace vkbot_vitalya;
 public partial class MessageHandler {
     private Dictionary<long, int> chaosScores = new Dictionary<long, int>(); // Счёт хаоса
 
-    private async Task HandlePhotoCommand(Message message, string command) {
-        var image = await FindImageInMessage(message);
-        if (image == null) {
-            L.W("Tried to handle photo command, but photo not found.");
+    private async Task HandleImageCommand(Message message, Func<Image<Rgba32>, Image<Rgba32>> imageProcessor) {
+        var originalImage = await FindImageInMessage(message);
+        if (originalImage == null) {
+            L.W("HandleImageCommand: image not found");
             return;
         }
-
-        switch (command) {
-            case "break":
-                L.I("Command 'Break' recognized.");
-                HandleImageCommand(message, image, Processor.BreakImage);
-                break;
-            case "liquidate":
-                L.I("Command 'Liquidate' recognized.");
-                HandleImageCommand(message, image, Processor.LiquidateImage);
-                break;
-            case "compress":
-                L.I("Command 'Compress' recognized.");
-                HandleImageCommand(message, image, Processor.CompressImage);
-                break;
-            case "add_text":
-                L.I("Command 'AddText' recognized.");
-                HandleImageCommand(message, image, Processor.AddTextImageCommand);
-                break;
-            default:
-                L.W("Tried to handle photo command, but command doesn't need a photo. Generating random message.");
-                var responseMessage = await MessageProcessor.KeepUpConversation();
-                Answer(message, responseMessage);
-                break;
-        }
-    }
-
-    private async void HandleImageCommand(Message message, Image<Rgba32> originalImage,
-        Func<Image<Rgba32>, Image<Rgba32>> imageProcessor) {
-        L.I("Handling image command...");
 
         try {
             Image<Rgba32> processedImage;
@@ -71,15 +41,15 @@ public partial class MessageHandler {
                 return;
             }
 
-            var photo = await _vk.UploadImage(processedImage);
+            var photo = await _bot.UploadImage(processedImage);
             if (photo == null) {
                 return;
             }
 
             // Send the saved photo in a message
-            _vk.Api.Messages.Send(new MessagesSendParams {
+            _bot.Api.Messages.Send(new MessagesSendParams {
                 RandomId = Rand.Next(),
-                PeerId = message.PeerId!.Value,
+                PeerId = message.PeerId,
                 ReplyTo = message.Id,
                 Attachments = photo
             });
@@ -90,14 +60,14 @@ public partial class MessageHandler {
         }
     }
 
-    private async void HandleMemeCommand(Message message, string keywords) {
+    private async Task HandleMemeCommand(Message message, string alias, string args) {
         Meme? meme;
-        if (string.IsNullOrEmpty(keywords)) {
+        if (string.IsNullOrEmpty(args)) {
             // Генерируем случайный мем, если ключевые слова отсутствуют
             meme = await ServiceEndpoint.MemeGen.RandomMeme(string.Empty, MemeType.Image);
         } else {
             // Генерируем мем по введенным ключевым словам
-            meme = await ServiceEndpoint.MemeGen.RandomMeme(keywords, MemeType.Image);
+            meme = await ServiceEndpoint.MemeGen.RandomMeme(args, MemeType.Image);
         }
 
         if (meme != null) {
@@ -105,7 +75,7 @@ public partial class MessageHandler {
             L.I($"Found meme URL: {memeUrl}");
 
             try {
-                var photo = await _vk.UploadImageFrom(memeUrl, new HttpClient());
+                var photo = await _bot.UploadImageFrom(memeUrl, new HttpClient());
                 if (photo == null) {
                     return;
                 }
@@ -113,9 +83,9 @@ public partial class MessageHandler {
                 var text = await MessageProcessor.KeepUpConversation();
 
                 // Send the saved meme image in a message
-                _vk.Api.Messages.Send(new MessagesSendParams {
+                _bot.Api.Messages.Send(new MessagesSendParams {
                     RandomId = Rand.Next(),
-                    PeerId = message.PeerId!.Value,
+                    PeerId = message.PeerId,
                     ReplyTo = message.Id,
                     Attachments = photo,
                     Message = text
@@ -132,8 +102,8 @@ public partial class MessageHandler {
         }
     }
 
-    private async void HandleWeatherCommand(Message message, string cityName) {
-        var weatherResponse = await ServiceEndpoint.WeatherService.GetWeatherAsync(cityName);
+    private async Task HandleWeatherCommand(Message message, string alias, string args) {
+        var weatherResponse = await ServiceEndpoint.WeatherService.GetWeatherAsync(args);
         if (weatherResponse != null) {
             var weatherMessage =
                 $"Погода в {weatherResponse.Name}:\n" +
@@ -149,16 +119,16 @@ public partial class MessageHandler {
         }
     }
 
-    private async void HandleAnimeCommand(Message message, string _tags = "") {
+    private async Task HandleAnimeCommand(Message message, string alias, string args) {
         var commandText = message.Text.ToLower().Trim();
-        string[] commandParts = commandText.Split(new[] { ' ' }, 3);
+        var commandParts = commandText.Split([' '], 3);
 
         var tags = "";
 
-        if (_tags == "") {
+        if (args == "") {
             if (commandParts.Length >= 3) tags = commandParts[2].Trim();
         } else {
-            tags = _tags;
+            tags = args;
         }
 
         // Если теги не указаны, будут использоваться отрицательные теги по умолчанию
@@ -171,10 +141,10 @@ public partial class MessageHandler {
             L.I($"Found image URL: {imageUrl}");
 
             try {
-                var photo = await _vk.UploadImageFrom(imageUrl, ServiceEndpoint.DanbooruApi.Client);
+                var photo = await _bot.UploadImageFrom(imageUrl, ServiceEndpoint.DanbooruApi.Client);
                 if (photo == null) return;
 
-                List<string> variableLabel = new List<string>() {
+                List<string> variableLabel = [
                     "Еще!",
                     "Ещ...е.. а.",
                     "Ах!! !!",
@@ -194,14 +164,13 @@ public partial class MessageHandler {
                     "Еще!",
                     "Еще!",
                     "ещо"
-                };
+                ];
 
-                var random = new Random();
 
                 var b = new MessageKeyboardButton {
                     Action = new MessageKeyboardButtonAction {
                         Type = VkNet.Enums.StringEnums.KeyboardButtonActionType.Text,
-                        Label = variableLabel[random.Next(variableLabel.Count)],
+                        Label = variableLabel[Rand.Next(variableLabel.Count)],
                         Payload = JsonConvert.SerializeObject(new { command = "anim", _tags = tags })
                     }
                 };
@@ -215,9 +184,9 @@ public partial class MessageHandler {
                     Inline = true
                 };
 
-                _vk.Api.Messages.Send(new MessagesSendParams {
+                _bot.Api.Messages.Send(new MessagesSendParams {
                     RandomId = Rand.Next(),
-                    PeerId = message.PeerId!.Value,
+                    PeerId = message.PeerId,
                     Attachments = photo,
                     ReplyTo = message.Id,
                     Keyboard = keyboard
@@ -234,20 +203,20 @@ public partial class MessageHandler {
         }
     }
 
-    private async void HandleHCommand(Message message, string _tags = "") {
+    private async Task HandleHCommand(Message message, string alias, string args) {
         var isForb = false;
 
         var onForbriddenTag = () => { isForb = true; };
 
         var commandText = message.Text.ToLower().Trim();
-        string[] commandParts = commandText.Split(new[] { ' ' }, 3);
+        var commandParts = commandText.Split([' '], 3);
 
         var tags = "";
 
-        if (_tags == "") {
+        if (args == "") {
             if (commandParts.Length >= 3) tags = commandParts[2].Trim();
         } else {
-            tags = _tags;
+            tags = args;
         }
 
         // Если теги не указаны, будут использоваться отрицательные теги по умолчанию
@@ -264,7 +233,7 @@ public partial class MessageHandler {
             L.I($"Found image URL: {imageUrl}");
 
             try {
-                var photo = await _vk.UploadImageFrom(imageUrl, ServiceEndpoint.DanbooruApi.Client);
+                var photo = await _bot.UploadImageFrom(imageUrl, ServiceEndpoint.DanbooruApi.Client);
                 if (photo == null)
                     return;
 
@@ -276,7 +245,7 @@ public partial class MessageHandler {
                     }
                 };
 
-                List<MessageKeyboardButton> buttonsRow1 = new List<MessageKeyboardButton> { b };
+                List<MessageKeyboardButton> buttonsRow1 = [b];
 
                 var values = new List<List<MessageKeyboardButton>> { buttonsRow1 };
 
@@ -285,9 +254,9 @@ public partial class MessageHandler {
                     Inline = true
                 };
 
-                _vk.Api.Messages.Send(new MessagesSendParams {
+                _bot.Api.Messages.Send(new MessagesSendParams {
                     RandomId = Rand.Next(),
-                    PeerId = message.PeerId!.Value,
+                    PeerId = message.PeerId,
                     Attachments = photo,
                     ReplyTo = message.Id,
                     Keyboard = keyboard
@@ -304,49 +273,49 @@ public partial class MessageHandler {
         }
     }
 
-    private async void HandleHelpCommand(Message message) {
+    private async Task HandleHelpCommand(Message message, string alias, string args) {
         var help = File.ReadAllText("./config.json");
 
-        await _vk.Api.Messages.SendAsync(new MessagesSendParams {
+        await _bot.Api.Messages.SendAsync(new MessagesSendParams {
             RandomId = Rand.Next(),
-            PeerId = message.PeerId!.Value,
+            PeerId = message.PeerId,
             ReplyTo = message.Id,
             Message = help
         });
     }
 
-    private async void HandleSearchCommand(Message message, string location) {
-        var (image, foundLocation) = await ServiceEndpoint.Map.Search(location);
+    private async Task HandleSearchCommand(Message message, string alias, string args) {
+        var (image, foundLocation) = await ServiceEndpoint.Map.Search(args);
 
         if (image == null) {
-            _vk.Api.Messages.Send(new MessagesSendParams {
+            _bot.Api.Messages.Send(new MessagesSendParams {
                 RandomId = Rand.Next(),
-                PeerId = message.PeerId!.Value,
+                PeerId = message.PeerId,
                 ReplyTo = message.Id,
-                Message = $"Не удалось узнать где {location}!"
+                Message = $"Не удалось узнать где {args}!"
             });
             return;
         }
 
-        var photos = await _vk.UploadImage(image);
+        var photos = await _bot.UploadImage(image);
         if (photos == null) return;
 
         var text = await MessageProcessor.KeepUpConversation();
 
-        _vk.Api.Messages.Send(new MessagesSendParams {
+        _bot.Api.Messages.Send(new MessagesSendParams {
             RandomId = Rand.Next(),
-            PeerId = message.PeerId!.Value,
+            PeerId = message.PeerId,
             ReplyTo = message.Id,
             Attachments = photos,
-            Message = $"{location} {text} \n{foundLocation.Item1}\n{foundLocation.Item2}",
+            Message = $"{args} {text} \n{foundLocation.Item1}\n{foundLocation.Item2}",
             //Lat = long.Parse(output.Item2.lat),
             //Longitude = long.Parse(output.Item2.lon)
         });
     }
 
-    private async void HandlePythonCommand(Message message) {
+    private async Task HandlePythonCommand(Message message, string alias, string args) {
         var commandText = message.Text.Trim();
-        string[] commandParts = commandText.Split(new[] { ' ' }, 3);
+        var commandParts = commandText.Split([' '], 3);
 
         if (commandParts.Length < 3 || !commandParts[1].Equals("py", StringComparison.OrdinalIgnoreCase)) {
             Answer(message,
@@ -381,45 +350,47 @@ public partial class MessageHandler {
 
     private static async Task<Image<Rgba32>?> FindImageInMessage(Message message) {
         var attachments = message.Attachments;
-        if (attachments is { Count: > 0 } && attachments[0].Instance is Photo photo) {
-            var largestPhoto = photo.Sizes?.OrderByDescending(s => s.Width * s.Height).FirstOrDefault();
-            var photoUrl = largestPhoto?.Url?.AbsoluteUri;
-            if (photoUrl == null) return null;
-            using var httpClient = new HttpClient();
-            var response = await httpClient.GetAsync(photoUrl);
-            var imageBytes = await response.Content.ReadAsByteArrayAsync();
-            using var ms = new MemoryStream(imageBytes);
-            Image<Rgba32> originalImage;
-
-            try {
-                originalImage = Image.Load<Rgba32>(ms);
-            } catch (Exception e) {
-                L.I($"Error loading image: {e.Message}");
-                return null;
-            }
-
-            return originalImage;
+        if (attachments is not { Count: > 0 } || attachments[0].Instance is not Photo photo) {
+            if (message.ReplyMessage != null)
+                return await FindImageInMessage(message.ReplyMessage);
+            return null;
         }
 
-        return message.ReplyMessage != null ? await FindImageInMessage(message.ReplyMessage) : null;
+        var largestPhoto = photo.Sizes.OrderByDescending(s => s.Width * s.Height).First();
+        var photoUrl = largestPhoto.Url.AbsoluteUri;
+        using var httpClient = new HttpClient();
+        var response = await httpClient.GetAsync(photoUrl);
+        var imageBytes = await response.Content.ReadAsByteArrayAsync();
+        using var ms = new MemoryStream(imageBytes);
+        Image<Rgba32> originalImage;
+
+        try {
+            originalImage = Image.Load<Rgba32>(ms);
+        } catch (Exception e) {
+            L.I($"Error loading image: {e.Message}");
+            return null;
+        }
+
+        return originalImage;
+
     }
 
-    public async Task HandleFuneralCommand(Message message) {
+    public async Task HandleFuneralCommand(Message message, string alias, string args) {
         var sourceImage = await FindImageInMessage(message);
         if (sourceImage == null) {
             Answer(message, "Некого хоронить!");
             return;
         }
 
-        var processedImage = await ImageProcessor.Funeral(sourceImage);
+        var processedImage = await sourceImage.Funeral();
 
-        var photos = await _vk.UploadImage(processedImage);
+        var photos = await _bot.UploadImage(processedImage);
         if (photos == null) return;
 
-        _vk.Api.Messages.Send(new MessagesSendParams {
+        _bot.Api.Messages.Send(new MessagesSendParams {
             Message = "RIP🥀",
             RandomId = Rand.Next(),
-            PeerId = message.PeerId!.Value,
+            PeerId = message.PeerId,
             // ReplyTo = message.Id,
             Attachments = photos
         });
@@ -427,7 +398,7 @@ public partial class MessageHandler {
         L.I("Processed photo sent to user.");
     }
 
-    private async Task<string> ExecutePythonCode(string code) {
+    private static async Task<string> ExecutePythonCode(string code) {
         var pythonPath = "python";
 
         var arguments = $"-c \"{code.Replace("\"", "\\\"")}\"";
@@ -442,41 +413,40 @@ public partial class MessageHandler {
             CreateNoWindow = true,
         };
 
-        using (var process = new Process { StartInfo = startInfo }) {
-            var output = new StringBuilder();
-            var error = new StringBuilder();
+        using var process = new Process { StartInfo = startInfo };
+        var output = new StringBuilder();
+        var error = new StringBuilder();
 
-            process.OutputDataReceived += (sender, args) => {
-                if (args.Data != null) output.AppendLine(args.Data);
-            };
-            process.ErrorDataReceived += (sender, args) => {
-                if (args.Data != null) error.AppendLine(args.Data);
-            };
+        process.OutputDataReceived += (sender, args) => {
+            if (args.Data != null) output.AppendLine(args.Data);
+        };
+        process.ErrorDataReceived += (sender, args) => {
+            if (args.Data != null) error.AppendLine(args.Data);
+        };
 
-            process.Start();
-            process.BeginOutputReadLine();
-            process.BeginErrorReadLine();
+        process.Start();
+        process.BeginOutputReadLine();
+        process.BeginErrorReadLine();
 
-            var completed = await Task.Run(() => process.WaitForExit(5000));
+        var completed = await Task.Run(() => process.WaitForExit(5000));
 
-            if (!completed) {
-                process.Kill();
-                throw new Exception("Код выполнялся слишком долго (более 5 секунд).");
-            }
-
-            process.WaitForExit();
-
-            if (error.Length > 0) {
-                return $"Ошибка: {error.ToString().Trim()}";
-            }
-
-            return output.ToString().Trim();
+        if (!completed) {
+            process.Kill();
+            throw new Exception("Код выполнялся слишком долго (более 5 секунд).");
         }
+
+        process.WaitForExit();
+
+        if (error.Length > 0) {
+            return $"Ошибка: {error.ToString().Trim()}";
+        }
+
+        return output.ToString().Trim();
     }
 
-    private async void HandleChaosCommand(Message message) {
+    private async Task HandleChaosCommand(Message message, string alias, string args) {
         var commandText = message.Text.Trim();
-        string[] commandParts = commandText.Split(new[] { ' ' }, 2); // "v chaos"
+        var commandParts = commandText.Split([' '], 2); // "v chaos"
 
         if (commandParts.Length < 2 || !commandParts[1].Equals("chaos", StringComparison.OrdinalIgnoreCase)) {
             Answer(message, "Просто напиши: `v chaos`");
@@ -486,12 +456,12 @@ public partial class MessageHandler {
         L.I("Starting chaos...");
 
         try {
-            var members = await _vk.GetChatMembers(message.PeerId!.Value);
+            var members = await _bot.GetChatMembers(message.PeerId);
             var victim = members.OrderBy(x => Guid.NewGuid()).First();
 
             var randomMember2 = members.OrderBy(x => Guid.NewGuid()).First();
 
-            var task = GenerateChaosTask(Vk.PingUser(randomMember2));
+            var task = GenerateChaosTask(Bot.PingUser(randomMember2));
 
             var buttons = new List<MessageKeyboardButton> {
                 new MessageKeyboardButton {
@@ -515,10 +485,10 @@ public partial class MessageHandler {
                 Inline = true
             };
 
-            await _vk.Api.Messages.SendAsync(new MessagesSendParams {
-                RandomId = new Random().Next(),
-                PeerId = message.PeerId!.Value,
-                Message = $"🔥 Хаос начинается! Жертва: {Vk.PingUser(victim)}\nЗадание: {task}\nГолосуйте!",
+            await _bot.Api.Messages.SendAsync(new MessagesSendParams {
+                RandomId = Rand.Next(),
+                PeerId = message.PeerId,
+                Message = $"🔥 Хаос начинается! Жертва: {Bot.PingUser(victim)}\nЗадание: {task}\nГолосуйте!",
                 Keyboard = keyboard
             });
 
@@ -530,8 +500,7 @@ public partial class MessageHandler {
     }
 
     private static string GenerateChaosTask(string name) {
-        var random = new Random();
-        string[] actions = {
+        string[] actions = [
             $"выебать {name}",
             $"трахнуть {name}",
             $"написать выебан на жопе {name}",
@@ -571,14 +540,14 @@ public partial class MessageHandler {
             $"заставить {name} искать таблетки в миске с макаронами",
             $"убедить {name}, что он видит мир в инверсии",
             $"заставить {name} гладить воздух и называть его псом"
-        };
-        return actions[random.Next(actions.Length)];
+        ];
+        return actions[Rand.Next(actions.Length)];
     }
 
     #region Settings
 
-    private async void HandleSettingsCommand(Message message) {
-        var chat = _vk.Saves.Chats.FirstOrDefault(c => c.PeerId == message.PeerId);
+    private async Task HandleSettingsCommand(Message message, string alias, string args) {
+        var chat = _bot.Saves.Chats.FirstOrDefault(c => c.PeerId == message.PeerId);
 
         if (chat == null) {
             Answer(message, "Чат не найден.");
@@ -587,7 +556,7 @@ public partial class MessageHandler {
 
         if (chat.Properties == null) {
             chat.Properties = new ChatProperties();
-            _vk.Saves.Save();
+            _bot.Saves.Save();
         }
 
         var b1 = CreateToggleButton(chat.Properties.IsAnime, "anime", "Аниме");
@@ -598,7 +567,7 @@ public partial class MessageHandler {
         var b6 = CreateToggleButton(chat.Properties.IsLocation, "location", "Местоположение");
 
         var buttonsRow1 = new List<MessageKeyboardButton> { b1, b2, b3 };
-        List<MessageKeyboardButton> buttonsRow2 = new List<MessageKeyboardButton> { b4, b5, b6 };
+        List<MessageKeyboardButton> buttonsRow2 = [b4, b5, b6];
 
         var values = new List<List<MessageKeyboardButton>> { buttonsRow1, buttonsRow2 };
 
@@ -607,9 +576,9 @@ public partial class MessageHandler {
             Inline = true
         };
 
-        await _vk.Api.Messages.SendAsync(new MessagesSendParams {
+        await _bot.Api.Messages.SendAsync(new MessagesSendParams {
             RandomId = Rand.Next(),
-            PeerId = message.PeerId!.Value,
+            PeerId = message.PeerId,
             Message = "Настройки чата",
             Keyboard = keyboard
         });
@@ -628,7 +597,7 @@ public partial class MessageHandler {
 
     private async Task<bool> IsUserAdmin(long chatId, long userId) {
         try {
-            var members = await _vk.Api.Messages.GetConversationMembersAsync(chatId, null, Auth.Instance.GroupId);
+            var members = await _bot.Api.Messages.GetConversationMembersAsync(chatId, null, Auth.Instance.GroupId);
 
             var admins = members.Items.Where(x => x.IsAdmin).Select(x => x.MemberId);
             return admins.Contains(userId);
@@ -639,19 +608,19 @@ public partial class MessageHandler {
     }
 
     /// Payload - данные, переданные в сообщении при нажатии кнопки
-    public async void HandlePayload(Message message) {
+    public async Task HandlePayload(Message message) {
         dynamic payload = JsonConvert.DeserializeObject(message.Payload);
         string command = payload.command;
-        var peerId = message.PeerId!.Value;
+        var peerId = message.PeerId;
 
         switch (command) {
             case "anim":
                 string tags = payload._tags;
-                HandleAnimeCommand(message, tags);
+                HandleAnimeCommand(message, command, tags);
                 return;
             case "hen":
                 string tagshen = payload._tags;
-                HandleHCommand(message, tagshen);
+                HandleHCommand(message, command, tagshen);
                 return;
 
             case "chaos_done":
@@ -671,12 +640,12 @@ public partial class MessageHandler {
 
         var userId = message.FromId.Value;
 
-        if (!await IsUserAdmin(message.PeerId!.Value, userId)) {
+        if (!await IsUserAdmin(message.PeerId, userId)) {
             Answer(message, "Только админы могут изменять настройки.");
             return;
         }
 
-        var chat = _vk.Saves.Chats.FirstOrDefault(c => c.PeerId == peerId);
+        var chat = _bot.Saves.Chats.FirstOrDefault(c => c.PeerId == peerId);
         if (chat == null) {
             Answer(message, "Чат не найден.");
             return;
@@ -684,7 +653,7 @@ public partial class MessageHandler {
 
         if (chat.Properties == null) {
             chat.Properties = new ChatProperties();
-            _vk.Saves.Save();
+            _bot.Saves.Save();
         }
 
         switch (command) {
@@ -712,12 +681,12 @@ public partial class MessageHandler {
                 return;
         }
 
-        _vk.Saves.Save();
+        _bot.Saves.Save();
 
         Answer(message, "Настройки обновлены.");
 
         // Отправляем обновленную клавиатуру
-        HandleSettingsCommand(message);
+        HandleSettingsCommand(message, command, "");
     }
 
     #endregion
@@ -763,17 +732,17 @@ public partial class MessageHandler {
         text = Regex.Replace(text, @"\bтвоём\b", "моём", RegexOptions.IgnoreCase);
         text = text.Replace('?', '.');
 
-        var users = await _vk.GetChatMembers(message.PeerId!.Value);
+        var users = await _bot.GetChatMembers(message.PeerId);
         var answerUser = users[Rand.Next(users.Count)];
         var prefix = prefixes[Rand.Next(prefixes.Length)];
         var decl = alias switch {
-            "кого" => Vk.Declension.Gen,
-            "кому" => Vk.Declension.Dat,
-            "кем" => Vk.Declension.Abl,
-            "о ком" => Vk.Declension.Ins,
-            _ => Vk.Declension.Nom
+            "кого" => Bot.Declension.Gen,
+            "кому" => Bot.Declension.Dat,
+            "кем" => Bot.Declension.Abl,
+            "о ком" => Bot.Declension.Ins,
+            _ => Bot.Declension.Nom
         };
-        Answer(message, $"{prefix} {Vk.PingUser(answerUser, decl: decl)} {text}");
+        Answer(message, $"{prefix} {Bot.PingUser(answerUser, decl: decl)} {text}");
     }
 
     private static async Task<(string url, string? text)> GetWikiPage(string title) {
@@ -810,7 +779,7 @@ public partial class MessageHandler {
         return ($"ru.wikipedia.org/w/index.php?title={Uri.EscapeDataString(title)}&action=edit", null);
     }
 
-    private async Task HandleWikiCommand(Message message, string args) {
+    private async Task HandleWikiCommand(Message message, string alias, string args) {
         var (url, text) = await GetWikiPage(args);
         if (text == null) {
             Answer(message, $"Нет такой статьи, напиши сам: {url}");
@@ -819,19 +788,19 @@ public partial class MessageHandler {
 
         Answer(message, $"{text.Trim()}\n\n{url}");
     }
-    
-    private async Task HandleWhatCommand(Message message, string args) {
+
+    private async Task HandleWhatCommand(Message message, string alias, string args) {
         var (_, text) = await GetWikiPage(args);
         if (text == null) {
-            Answer(message, $"А я ебу что ли?");
+            Answer(message, "А я ебу что ли?");
             return;
         }
 
         Answer(message, text.Trim());
     }
 
-    private void HandleUpdateChat(Message message, string alias, string args) {
-        _vk.UpdateChat(message.PeerId!.Value);
+    private async Task HandleUpdateChat(Message message, string alias, string args) {
+        _bot.UpdateChat(message.PeerId);
         Answer(message, "Обновил список участников чата.");
     }
 }

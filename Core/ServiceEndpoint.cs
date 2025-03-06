@@ -1,10 +1,8 @@
-﻿using vkbot_vitalya.Config;
-using vkbot_vitalya.Services;
+﻿using vkbot_vitalya.Services;
 
 namespace vkbot_vitalya;
 
-public record ServiceEndpoint()
-{
+public record ServiceEndpoint {
     public MemeGen MemeGen { get; set; } = new MemeGen();
     public WeatherService WeatherService { get; set; } = new WeatherService();
     public DanbooruApi DanbooruApi { get; set; } = new DanbooruApi();

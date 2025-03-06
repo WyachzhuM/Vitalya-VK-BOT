@@ -4,8 +4,8 @@ using VkNet.Model;
 namespace vkbot_vitalya.Services.Generators.TextGeneration;
 
 public static class MessageProcessor {
-    private const int MAX_MESSAGE_LENGTH = 50;
-    private static Random _random = new Random();
+    private const int MaxMessageLength = 50;
+    private static readonly Random Rand = new Random();
 
     // To services 
     public static async Task<string> KeepUpConversation() {
@@ -15,7 +15,7 @@ public static class MessageProcessor {
             return "No chats available.";
         }
 
-        var randomChatFilePath = chatFiles[_random.Next(chatFiles.Length)];
+        var randomChatFilePath = chatFiles[Rand.Next(chatFiles.Length)];
         var chatMessages = await ChatMessages.Deserialize(randomChatFilePath);
 
         if (chatMessages.Messages.Count == 0) {
@@ -42,16 +42,15 @@ public static class MessageProcessor {
             return result;
         }
 
-        var random = new Random();
 
-        var words = messages[random.Next(messages.Count)].Text!.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        var words = messages[Rand.Next(messages.Count)].Text!.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         if (words.Length == 0) {
             return result;
         }
 
-        var currentWord = words[random.Next(words.Length)];
+        var currentWord = words[Rand.Next(words.Length)];
 
-        var m = random.Next(MAX_MESSAGE_LENGTH);
+        var m = Rand.Next(MaxMessageLength);
         for (var i = 0; i < m; i++) {
             result += currentWord + " ";
 

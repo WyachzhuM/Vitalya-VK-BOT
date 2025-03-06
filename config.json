@@ -1,6 +1,6 @@
 {
+  "auto_update_chats": false,
   "bot_names": [ "виталя", "вит", "валера", "@pan_propalbot", "[pan_propalbot|@pan_propalbot]", "[club227202883|@pan_propalbot]", "vit", "v" ],
-  "response_probability": 0.1,
   "commands": {
     "generate_sentences": [ "/generate_sentences", "пизди", "gen" ],
     "echo": [ "echo", "ты тут?" ],
@@ -20,6 +20,9 @@
     "funeral": [ "похороны", "похоронить", "похорони" ],
     "who": [ "кто", "кого", "кому", "кем", "о ком" ],
     "wiki": [ "wiki", "вики", "википедия" ],
-    "what": [ "что такое", "расскажи про" ]
+    "what": [ "что такое", "расскажи про" ],
+    "why": [ "почему" ],
+    "test": [ "test" ],
+    "update_chat": [ "update_chat" ]
   }
 }

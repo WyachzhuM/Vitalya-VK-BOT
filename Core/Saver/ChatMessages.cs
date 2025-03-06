@@ -31,15 +31,15 @@ public class ChatMessage {
 public class ChatMessages {
     private const int MAX_MESSAGES = 3000;
 
-    public ChatMessages(long? peerID, List<ChatMessage> messages) {
-        PeerID = peerID ?? 0;
+    public ChatMessages(long peerId, List<ChatMessage> messages) {
+        PeerId = peerId;
         Messages = messages;
     }
 
     public ChatMessages() {
     }
 
-    [JsonPropertyName("peer_id")] public long? PeerID { get; set; }
+    [JsonPropertyName("peer_id")] public long PeerId { get; set; }
 
     [JsonPropertyName("messages")] public List<ChatMessage> Messages { get; set; }
 
@@ -81,11 +81,9 @@ public class ChatMessages {
         }
 
         var fullpath = Path.Combine(filePath, GetFileName(message.PeerId.ToString()));
-        L.D($"{nameof(ChatMessages)}: Trying to read file from {fullpath}");
 
         var chatMessages = await Deserialize(fullpath);
 
-        L.D($"{nameof(ChatMessages)}: Deserialized chatMessages successfully");
 
         var message1 = new ChatMessage(message.FromId, message.Text, message.Date, message.ConversationMessageId);
 
@@ -98,7 +96,6 @@ public class ChatMessages {
         try {
             var json = JsonSerializer.Serialize(chatMessages, new JsonSerializerOptions { WriteIndented = true });
             await File.WriteAllTextAsync(fullpath, json);
-            L.D($"{nameof(ChatMessages)}: Updated and wrote to file successfully");
         } catch (Exception ex) {
             L.E($"{nameof(ChatMessages)}: Error serializing or writing to file: {ex.Message}");
         }
@@ -114,12 +111,12 @@ public class ChatMessages {
 
     private async Task Save(string filePath, ChatMessages chat) {
         var json = JsonSerializer.Serialize(chat, new JsonSerializerOptions { WriteIndented = true });
-        await File.WriteAllTextAsync(Path.Combine(filePath, GetFileName(chat.PeerID.ToString())), json);
+        await File.WriteAllTextAsync(Path.Combine(filePath, GetFileName(chat.PeerId.ToString())), json);
     }
 
     #endregion
 
-    public static async Task<List<ChatMessage>> GetMessagesFromUser(long? peerId, long? fromId) {
+    public static async Task<List<ChatMessage>> GetMessagesFromUser(long peerId, long? fromId) {
         var fullpath = Path.Combine(Program._savedMessagesFolder, GetFileName(peerId.ToString()));
 
         var chatmessages = await Deserialize(fullpath);
@@ -133,7 +130,7 @@ public class ChatMessages {
         return messages;
     }
 
-    public static async Task<List<ChatMessage>> GetMessages(long? peerId) {
+    public static async Task<List<ChatMessage>> GetMessages(long peerId) {
         var fullpath = Path.Combine(Program._savedMessagesFolder, GetFileName(peerId.ToString()));
 
         var chatmessages = await Deserialize(fullpath);
@@ -148,6 +145,6 @@ public class ChatMessages {
     }
 
     public override string ToString() {
-        return $"{nameof(ChatMessages)}: Chat {PeerID} has {Messages.Count} messages!";
+        return $"{nameof(ChatMessages)}: Chat {PeerId} has {Messages.Count} messages!";
     }
 }

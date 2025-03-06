@@ -45,6 +45,6 @@ public class MessageSaver {
             WordAssociations.AddAssociation(words[i], words[i + 1]);
         }
 
-        WordAssociations.SaveToFile(WordAssociations.assocFilePath);
+        WordAssociations.Save(WordAssociations.AssocFilePath);
     }
 }

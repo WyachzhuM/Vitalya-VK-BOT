@@ -1,14 +1,16 @@
-﻿namespace vkbot_vitalya.Services.Generators.TextGeneration;
+﻿using Newtonsoft.Json;
+
+namespace vkbot_vitalya.Services.Generators.TextGeneration;
 
 public class WordAssociations {
     private static Dictionary<string, Dictionary<string, int>> _associations;
 
-    public static string assocFilePath = "./associations.json";
+    public const string AssocFilePath = "associations.json";
 
     public WordAssociations() {
         _associations = new Dictionary<string, Dictionary<string, int>>(StringComparer.OrdinalIgnoreCase);
 
-        LoadFromFile(assocFilePath);
+        Load(AssocFilePath);
     }
 
     // Метод для добавления связи между двумя словами
@@ -26,28 +28,25 @@ public class WordAssociations {
 
     // Получение следующего слова на основе текущего
     public static string GetNextWord(string currentWord) {
-        if (!_associations.ContainsKey(currentWord)) {
-            return string.Empty;
-        }
-
-        var possibleWords = _associations[currentWord];
-        return possibleWords.OrderByDescending(kvp => kvp.Value).FirstOrDefault().Key ?? string.Empty;
+        if (_associations.TryGetValue(currentWord, out var possibleWords))
+            return possibleWords.OrderByDescending(kvp => kvp.Value).FirstOrDefault().Key ?? string.Empty;
+        return string.Empty;
     }
 
 
-    public static void SaveToFile(string path) {
-        var json = Newtonsoft.Json.JsonConvert.SerializeObject(_associations);
+    public static void Save(string path) {
+        var json = JsonConvert.SerializeObject(_associations);
         File.WriteAllText(path, json);
     }
 
-    public void LoadFromFile(string path) {
+    private static void Load(string path) {
         if (File.Exists(path)) {
             var json = File.ReadAllText(path);
             _associations =
-                Newtonsoft.Json.JsonConvert.DeserializeObject<Dictionary<string, Dictionary<string, int>>>(json) ??
+                JsonConvert.DeserializeObject<Dictionary<string, Dictionary<string, int>>>(json) ??
                 new Dictionary<string, Dictionary<string, int>>(StringComparer.OrdinalIgnoreCase);
         } else {
-            SaveToFile(path);
+            Save(path);
         }
     }
 }

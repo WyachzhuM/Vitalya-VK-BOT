@@ -8,13 +8,8 @@ namespace vkbot_vitalya.Services;
 [Obsolete]
 public class MemeGen {
     public MemeGen() {
-        if (Auth.Instance.MemeGenApiKey == null) {
-            L.I("Put the meme apikey into auth.json file!");
-            ApiKey = string.Empty;
-        } else {
-            ApiKey = Auth.Instance.MemeGenApiKey;
-            Client.DefaultRequestHeaders.Add("x-api-key", ApiKey);
-        }
+        ApiKey = Auth.Instance.MemeGenApiKey;
+        Client.DefaultRequestHeaders.Add("x-api-key", ApiKey);
     }
 
     private readonly HttpClient Client = new HttpClient();

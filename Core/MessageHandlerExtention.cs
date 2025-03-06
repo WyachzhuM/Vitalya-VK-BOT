@@ -1,5 +1,4 @@
-﻿using Newtonsoft.Json;
-using SixLabors.ImageSharp;
+﻿using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
 using System.Text;
 using vkbot_vitalya.Config;
@@ -8,6 +7,7 @@ using VkNet.Model;
 using vkbot_vitalya.Services.Generators.TextGeneration;
 using System.Diagnostics;
 using System.Text.RegularExpressions;
+using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using vkbot_vitalya.Core;
 using vkbot_vitalya.Services.Generators;
@@ -132,7 +132,7 @@ public partial class MessageHandler {
         }
 
         // Если теги не указаны, будут использоваться отрицательные теги по умолчанию
-        L.I($"Requesting Danbooru with tags: {tags}");
+        L.I($"Requesting Safebooru with tags: {tags}");
 
         var randomPost = await ServiceEndpoint.SafebooruApi.GetRandomPostAsync(tags);
 
@@ -141,7 +141,7 @@ public partial class MessageHandler {
             L.I($"Found image URL: {imageUrl}");
 
             try {
-                var photo = await _bot.UploadImageFrom(imageUrl, ServiceEndpoint.DanbooruApi.Client);
+                var photo = await _bot.UploadImageFrom(imageUrl, ServiceEndpoint.SafebooruApi.Client);
                 if (photo == null) return;
 
                 List<string> variableLabel = [
@@ -208,21 +208,10 @@ public partial class MessageHandler {
 
         var onForbriddenTag = () => { isForb = true; };
 
-        var commandText = message.Text.ToLower().Trim();
-        var commandParts = commandText.Split([' '], 3);
-
-        var tags = "";
-
-        if (args == "") {
-            if (commandParts.Length >= 3) tags = commandParts[2].Trim();
-        } else {
-            tags = args;
-        }
-
         // Если теги не указаны, будут использоваться отрицательные теги по умолчанию
-        L.I($"Requesting Danbooru with tags: {tags}");
+        L.I($"Requesting Danbooru with tags: {args}");
 
-        var imageUrl = await ServiceEndpoint.DanbooruApi.RandomImageAsync(onForbriddenTag, tags);
+        var imageUrl = await ServiceEndpoint.DanbooruApi.RandomImageAsync(onForbriddenTag, args);
 
         if (isForb && !Program.IgnoreTagsBlacklist) {
             L.I("Found forbidden tags, aborting");
@@ -241,7 +230,7 @@ public partial class MessageHandler {
                     Action = new MessageKeyboardButtonAction {
                         Type = VkNet.Enums.StringEnums.KeyboardButtonActionType.Text,
                         Label = "Еще!",
-                        Payload = JsonConvert.SerializeObject(new { command = "hen", _tags = tags })
+                        Payload = JsonConvert.SerializeObject(new { command = "hen", _tags = args })
                     }
                 };
 
@@ -372,7 +361,6 @@ public partial class MessageHandler {
         }
 
         return originalImage;
-
     }
 
     public async Task HandleFuneralCommand(Message message, string alias, string args) {
@@ -705,8 +693,13 @@ public partial class MessageHandler {
             "Всем известно, что",
             "Все и так знают:"
         ];
-        if (Rand.NextSingle() < 0.1) {
+        if (Rand.NextSingle() < 0.05) {
             Answer(message, "А я откуда знаю?");
+            return;
+        }
+
+        if (Rand.NextSingle() < 0.05) {
+            Answer(message, "Никто.");
             return;
         }
 

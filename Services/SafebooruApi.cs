@@ -28,7 +28,7 @@ public class SafebooruApi {
             new NetworkCredential(Auth.Instance.ProxyLogin, Auth.Instance.ProxyPassword), "vk-bot-vitalya");
     }
 
-    private HttpClient Client { get; set; }
+    public HttpClient Client { get; set; }
 
     public async Task<SafebooruPost?> GetRandomPostAsync(string tags) {
         // Кэширование результатов

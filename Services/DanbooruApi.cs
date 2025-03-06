@@ -3,6 +3,7 @@ using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Newtonsoft.Json.Linq;
 using vkbot_vitalya.Config;
 using vkbot_vitalya.Core;
 using vkbot_vitalya.Core.Requesters;
@@ -42,75 +43,83 @@ public class DanbooruApi {
 
     private string ApiKey { get; }
     private string Login { get; }
-
-    public async Task<string?> RandomImageAsync(Action onForbTag, string tags = "",
-        string excludeTags =
-            "yaoi,2boys,multiple_boys,male_penetrated,bara, male_focus, muscular_male, cum_on_male, facial_hair",
-        int count = 1) {
+    // 799 800
+    // 5050694 5047288
+    
+    public async Task<string?> RandomImageAsync(Action onForbTag, string tagsString = "") {
         try {
-            const int maxAttempts = 5;
-
-            var excludeTagsArray = excludeTags.Split(',', StringSplitOptions.RemoveEmptyEntries);
-
-            for (var i = 0; i < maxAttempts; i++) {
-                var page = Rand.Next(1, 1000);
-
-                var tagList = string.IsNullOrWhiteSpace(tags) && !Program.IgnoreTagsBlacklist
-                    ? excludeTagsArray.Skip(i % (excludeTagsArray.Length / 2) * 2).Take(2)
-                        .Select(tag => "-" + Uri.EscapeDataString(tag))
-                    : tags.Split(',', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(Uri.EscapeDataString);
-
-                var joinedTags = string.Join("+", tagList);
-
-                var url = $"https://danbooru.donmai.us/posts.json?limit={count}&page={page}";
-                if (joinedTags.Length > 0) {
-                    url += $"&tags={joinedTags}";
+            
+            var tags = tagsString.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Take(2).Select(Uri.EscapeDataString).ToList();
+            var minPostsCount = int.MaxValue;
+            var rarestTag = string.Empty;
+            foreach (var tag in tags) {
+                var url1 = $"https://danbooru.donmai.us/tags.json?search[name_or_alias_matches]={tag}&search[hide_empty]=true";
+                using var response1 = await Client.GetAsync(url1);
+                response1.EnsureSuccessStatusCode();
+                var responseBody1 = await response1.Content.ReadAsStringAsync();
+                var jArray = JArray.Parse(responseBody1);
+                if (jArray.Count < 1) {
+                    return null;
                 }
-
-                L.I($"Requesting URL: {url}");
-
-                using var response = await Client.GetAsync(url);
-                response.EnsureSuccessStatusCode();
-
-                var responseBody = await response.Content.ReadAsStringAsync();
-                var posts = JsonSerializer.Deserialize<List<Post>>(responseBody);
-
-                if (posts is not { Count: > 0 }) {
-                    L.I("No posts found.");
-                    continue;
+                var count = (int)jArray[0]["post_count"];
+                L.I($"{tag}: {count}");
+                if (count < minPostsCount) {
+                    minPostsCount = count;
+                    rarestTag = tag;
                 }
-
-                L.I($"Posts found: {posts.Count}");
-
-                var post = posts[Rand.Next(posts.Count)];
-
-                var isEnough = false;
-
-                forbiddenTags.ForEach(forbTag => {
-                    if (post.TagString.Contains(forbTag)) {
-                        isEnough = true;
-                        onForbTag.Invoke();
-                    }
-                });
-
-                if (isEnough && !Program.IgnoreTagsBlacklist) {
-                    continue;
-                }
-
-                // null for tags: loli, 
-                if (post.FileUrl == null) {
-                    L.E($"null url for tags: {joinedTags}");
-                    continue;
-                }
-
-                // Добавляем проверку типа файла
-                if (post.FileUrl.EndsWith(".jpg") || post.FileUrl.EndsWith(".jpeg") ||
-                    post.FileUrl.EndsWith(".png") || post.FileUrl.EndsWith(".gif")) {
-                    return post.FileUrl;
-                }
-
-                L.I($"Unsupported file type: {post.FileUrl}");
             }
+
+            var url = $"https://danbooru.donmai.us/posts.json?" +
+                      $"page={Rand.Next(Math.Min(minPostsCount, 1000))}" +
+                      $"&limit=1";
+            
+            if (rarestTag != string.Empty) {
+                url += $"&tags={rarestTag}+-loli";
+            }
+
+            L.I($"Requesting URL: {url}");
+
+            using var response = await Client.GetAsync(url);
+            response.EnsureSuccessStatusCode();
+
+            var responseBody = await response.Content.ReadAsStringAsync();
+            var posts = JsonSerializer.Deserialize<List<Post>>(responseBody);
+
+            if (posts is not { Count: > 0 }) {
+                L.I("No posts found.");
+                return null;
+            }
+
+            L.I($"Posts found: {posts.Count}");
+
+            var post = posts[Rand.Next(posts.Count)];
+
+            L.I($"Tags: {post.TagString}");
+            var isEnough = false;
+
+            forbiddenTags.ForEach(forbTag => {
+                if (post.TagString.Contains(forbTag)) {
+                    isEnough = true;
+                    onForbTag.Invoke();
+                }
+            });
+
+            if (isEnough && !Program.IgnoreTagsBlacklist) {
+                return null;
+            }
+
+            if (post.FileUrl == null) {
+                L.E($"null url for tags: ");
+                return null;
+            }
+
+            // Добавляем проверку типа файла
+            if (post.FileUrl.EndsWith(".jpg") || post.FileUrl.EndsWith(".jpeg") ||
+                post.FileUrl.EndsWith(".png") || post.FileUrl.EndsWith(".gif")) {
+                return post.FileUrl;
+            }
+
+            L.I($"Unsupported file type: {post.FileUrl}");
 
             return null;
         } catch (Exception e) {

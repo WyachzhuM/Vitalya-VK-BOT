@@ -42,7 +42,6 @@ public partial class MessageHandler {
         AddCommand("what", HandleWhatCommand);
         AddCommand("funeral", HandleFuneralCommand);
         AddCommand("why", (message, alias, args) => AnswerAsync(message, "Потому что твоя мама жирная"));
-        AddCommand("test", (message, alias, args) => Task.CompletedTask);
         AddCommand("update_chat", HandleUpdateChat);
         AddCommand("break", (message, alias, args) => HandleImageCommand(message, ImageProcessor.BreakImage));
         AddCommand("liquidate", (message, alias, args) => HandleImageCommand(message, ImageProcessor.LiquidateImage));
@@ -53,6 +52,7 @@ public partial class MessageHandler {
             var text = await MessageProcessor.KeepUpConversation();
             Answer(message, text);
         });
+        AddCommand("пахавать)", (message, alias, args) => AnswerAsync(message, "Сегодня не жрешь"));
     }
 
     private ServiceEndpoint ServiceEndpoint { get; }
@@ -64,6 +64,7 @@ public partial class MessageHandler {
     }
 
     public async Task HandleMessage(Message message) {
+        // todo бля пизда с ботами
         var chatCache = _bot.Saves.Chats.FirstOrDefault(c => c.PeerId == message.PeerId);
         if (chatCache == null) {
             _bot.Saves.AddChat(message.PeerId);
@@ -74,10 +75,10 @@ public partial class MessageHandler {
         var user = chatCache.Users.FirstOrDefault(u => u.Id == message.FromId);
         if (user == null) {
             await _bot.UpdateChat(message.PeerId);
-            user = chatCache.Users.FirstOrDefault(u => u.Id == message.FromId)!;
+            user = chatCache.Users.FirstOrDefault(u => u.Id == message.FromId);
         }
 
-        var sender = user.ToString();
+        var sender = user?.ToString();
         var sb = new StringBuilder();
         if (message.PeerId != message.FromId)
             sb.Append($"[{message.PeerId}] ");
@@ -99,12 +100,11 @@ public partial class MessageHandler {
         var requireBotName = message.PeerId > 2000000000
                              && message.ReplyMessage?.FromId != -(long)Auth.Instance.GroupId;
 
-        string? botName = null;
         string? command = null;
         string? alias = null;
         string? args = null;
 
-        botName = Conf.Instance.BotNames
+        var botName = Conf.Instance.BotNames
             .FirstOrDefault(name => Regex.IsMatch(text.ToLower(), $"^{Regex.Escape(name)}(\\s|$)"));
         if (botName != null) {
             text = text[botName.Length..].TrimStart();
@@ -129,6 +129,16 @@ public partial class MessageHandler {
                     args = text[knownAlias.Length..].TrimStart();
                     break;
                 }
+            }
+        }
+        
+        // костыль для команд не из конфига
+        foreach (var knownCommand in CommandHandlers.Keys) {
+            if (Regex.IsMatch(text.ToLower(), $"^{Regex.Escape(knownCommand)}(\\s|$)")) {
+                command = knownCommand;
+                alias = knownCommand;
+                args = text[knownCommand.Length..].TrimStart();
+                break;
             }
         }
 

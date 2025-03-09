@@ -1,12 +1,13 @@
 ﻿using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
-using System.Text.Json;
 using System.Text.Json.Serialization;
+using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using vkbot_vitalya.Config;
 using vkbot_vitalya.Core;
 using vkbot_vitalya.Core.Requesters;
+using JsonSerializer = System.Text.Json.JsonSerializer;
 
 namespace vkbot_vitalya.Services;
 
@@ -14,20 +15,19 @@ namespace vkbot_vitalya.Services;
 /// это было сложно, но я это сделал
 /// </summary>
 public class DanbooruApi {
-    private static readonly TimeSpan SECONDS_BETWEEN_INVOKES = TimeSpan.FromSeconds(30);
-    private static readonly Random Rand = new Random();
+    private const string MasterUrl = "https://danbooru.donmai.us/";
 
-    private readonly List<string> forbiddenTags = [
-        "futanari", "gay", "furry", "penis", "testicles", "huge penis", "erection", "inflation",
-        "loli", "child on child", "yaoi", "2boys", "nazi", "trap", "succubus", "corpse",
-        "coprophilic", "cunt", "multiple boys", "yaoi", "2boys", "multiple_boys", "male_penetrated",
-        "bara", "male_focus", "muscular_male", "cum_on_male", "rotten", "coprophagia",
-        "scat", "diarrhea", "poop", "squat toilet", "pee", "toilet use", "guro", "ero guro",
-        "vomit", "fart", "tentacles", "peeing", "personality excrement", "defecating",
-        "enema", "execution", "hazbin_hotel"
-    ];
+    private static readonly Random Rand = new Random();
+    private static readonly Dictionary<string, int> TagsCounters = [];
+    public readonly Dictionary<string, int> TagsCache;
 
     public DanbooruApi() {
+        if (File.Exists("tags_cache.json")) {
+            var text = File.ReadAllText("tags_cache.json");
+            TagsCache = JsonConvert.DeserializeObject<Dictionary<string, int>>(text) ?? [];
+        } else {
+            TagsCache = [];
+        }
         ApiKey = Auth.Instance.DanbooruApikey;
         Login = Auth.Instance.DanbooruLogin;
 
@@ -43,39 +43,73 @@ public class DanbooruApi {
 
     private string ApiKey { get; }
     private string Login { get; }
-    // 799 800
-    // 5050694 5047288
-    
-    public async Task<string?> RandomImageAsync(Action onForbTag, string tagsString = "") {
-        try {
-            
-            var tags = tagsString.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Take(2).Select(Uri.EscapeDataString).ToList();
-            var minPostsCount = int.MaxValue;
-            var rarestTag = string.Empty;
-            foreach (var tag in tags) {
-                var url1 = $"https://danbooru.donmai.us/tags.json?search[name_or_alias_matches]={tag}&search[hide_empty]=true";
-                using var response1 = await Client.GetAsync(url1);
-                response1.EnsureSuccessStatusCode();
-                var responseBody1 = await response1.Content.ReadAsStringAsync();
-                var jArray = JArray.Parse(responseBody1);
-                if (jArray.Count < 1) {
-                    return null;
-                }
-                var count = (int)jArray[0]["post_count"];
-                L.I($"{tag}: {count}");
-                if (count < minPostsCount) {
-                    minPostsCount = count;
-                    rarestTag = tag;
-                }
-            }
 
-            var url = $"https://danbooru.donmai.us/posts.json?" +
-                      $"page={Rand.Next(Math.Min(minPostsCount, 1000))}" +
-                      $"&limit=1";
-            
-            if (rarestTag != string.Empty) {
-                url += $"&tags={rarestTag}+-loli";
+    private static readonly string[] AllowedFormats = ["jpg", "jpeg", "png", "gif", "webp"];
+
+    public async Task<(string?, string?)> RandomImageAsync(string tagsString = "") {
+        string[] alwaysExclude = ["loli", "shota"];
+        var tags = tagsString.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(Uri.EscapeDataString).ToList();
+
+        // Исключаем чилд по
+        if (tags.Intersect(alwaysExclude).Any()) 
+            return (null, "Ничего нет с такими тегами");
+        
+        // Исключаем запрещенные теги
+        if (Conf.Instance.UseForbiddenTags && tags.Intersect(Conf.Instance.ForbiddenTags).Any())
+            return (null, "Я эту хуйню искать не буду");
+        
+        // Узнаем количество постов с каждым тегом
+        Dictionary<string, int> postsCount = [];
+        foreach (var tag in tags) {
+            if (TagsCache.TryGetValue(tag, out var value)) {
+                postsCount[tag] = value;
+                continue;
             }
+            var url1 = $"{MasterUrl}tags.json?search[name_or_alias_matches]={tag}&search[hide_empty]=true";
+            using var response1 = await Client.GetAsync(url1);
+            response1.EnsureSuccessStatusCode();
+            var responseBody1 = await response1.Content.ReadAsStringAsync();
+            var jArray = JArray.Parse(responseBody1);
+            if (jArray.Count < 1)
+                return (null, $"Ничего нет с тегом {tag}");
+
+            var count = (int)jArray[0]["post_count"];
+            TagsCache.Add(tag, count);
+            L.I($"{tag}: {count}");
+            postsCount[tag] = count;
+        }
+
+        var tagsByRarity = postsCount.OrderBy(p => p.Value).ToList();
+        var tagsHash = string.Join(' ', tagsByRarity.Select(p => p.Key));
+
+        for (var attempt = 0; attempt < 5; attempt++) {
+            string url;
+            switch (tagsByRarity.Count) {
+                case 0:
+                    // Нет тегов, выбираю любую страницу
+                    url = $"{MasterUrl}posts.json?" +
+                          $"page={Rand.Next(1000)}" +
+                          $"&limit=1" +
+                          $"&tags=-loli+-shota";
+                    break;
+                case 1:
+                    // Один тег, ограничиваюсь количеством постов с ним
+                    url = $"{MasterUrl}posts.json?" +
+                          $"page={Rand.Next(Math.Min(tagsByRarity[0].Value, 1000))}" +
+                          $"&limit=1" +
+                          $"&tags={tagsByRarity[0].Key}+-loli";
+                    break;
+                default: 
+                    // Много тегов, не могу узнать количество постов, начинаю с первого
+                    TagsCounters.TryAdd(tagsHash, 0);
+                    TagsCounters[tagsHash] += 1;
+                    url = $"{MasterUrl}posts.json?" +
+                          $"page={TagsCounters[tagsHash]}" +
+                          $"&limit=1" +
+                          $"&tags={tagsByRarity[0].Key}+{tagsByRarity[1].Key}";
+                    break;
+            } 
 
             L.I($"Requesting URL: {url}");
 
@@ -86,8 +120,13 @@ public class DanbooruApi {
             var posts = JsonSerializer.Deserialize<List<Post>>(responseBody);
 
             if (posts is not { Count: > 0 }) {
-                L.I("No posts found.");
-                return null;
+                if (tagsByRarity.Count < 2)
+                    L.E("Тегов меньше 2, но посты не найдены");
+                // Посты с несколькими тегами закончились, сбрасываю счетчик
+                if (TagsCounters.ContainsKey(tagsHash))
+                    TagsCounters[tagsHash] = 0;
+                L.I("No posts found. Retrying");
+                continue;
             }
 
             L.I($"Posts found: {posts.Count}");
@@ -95,37 +134,32 @@ public class DanbooruApi {
             var post = posts[Rand.Next(posts.Count)];
 
             L.I($"Tags: {post.TagString}");
-            var isEnough = false;
 
-            forbiddenTags.ForEach(forbTag => {
-                if (post.TagString.Contains(forbTag)) {
-                    isEnough = true;
-                    onForbTag.Invoke();
-                }
-            });
 
-            if (isEnough && !Program.IgnoreTagsBlacklist) {
-                return null;
+            if (Conf.Instance.UseForbiddenTags && Conf.Instance.ForbiddenTags.Any(tag => post.TagString.Contains(tag))) {
+                // Попался запрещенный тег
+                L.I("Got forbidden tag. Retrying");
+                continue;
             }
 
             if (post.FileUrl == null) {
-                L.E($"null url for tags: ");
-                return null;
+                // Без понятия
+                if (post.TagString.Split(' ').Intersect(alwaysExclude).Any())
+                    L.I("Got loli or shota in tags");
+                else
+                    L.E("post.FileUrl is null");
+
+                continue;
             }
 
-            // Добавляем проверку типа файла
-            if (post.FileUrl.EndsWith(".jpg") || post.FileUrl.EndsWith(".jpeg") ||
-                post.FileUrl.EndsWith(".png") || post.FileUrl.EndsWith(".gif")) {
-                return post.FileUrl;
+            if (AllowedFormats.Any(s => post.FileUrl.EndsWith(s))) {
+                return (post.FileUrl, null);
             }
 
-            L.I($"Unsupported file type: {post.FileUrl}");
-
-            return null;
-        } catch (Exception e) {
-            L.E("Failed to find image", e);
-            return null;
+            L.I($"Got {post.FileUrl.Split('.')[^1]} format. Retrying");
         }
+        
+        return (null, "");
     }
 }
 

@@ -13,16 +13,6 @@ public class SafebooruApi {
 
     private readonly Dictionary<string, List<SafebooruPost>> cache = new Dictionary<string, List<SafebooruPost>>();
 
-    private readonly List<string> forbiddenTags = [
-        "futanari", "gay", "furry", "penis", "testicles", "huge penis", "erection", "inflation",
-        "loli", "child on child", "yaoi", "2boys", "nazi", "trap", "succubus", "corpse",
-        "coprophilic", "cunt", "multiple boys", "yaoi", "2boys", "multiple_boys", "male_penetrated",
-        "bara", "male_focus", "muscular_male", "cum_on_male", "rotten", "coprophagia",
-        "scat", "diarrhea", "poop", "squat toilet", "pee", "toilet use", "guro", "ero guro",
-        "vomit", "fart", "tentacles", "peeing", "personality excrement", "defecating",
-        "enema", "execution", "hazbin_hotel", "helluva_boss", "loona"
-    ];
-
     public SafebooruApi() {
         Client = ProxyClient.GetProxyHttpClient(Auth.Instance.ProxyAdress,
             new NetworkCredential(Auth.Instance.ProxyLogin, Auth.Instance.ProxyPassword), "vk-bot-vitalya");
@@ -47,7 +37,7 @@ public class SafebooruApi {
         var incTags = tags.Replace(",", " ");
         var randomPage = Rand.Next(0, (postCount - 1) / 200 + 1);
 
-        if (forbiddenTags.Contains(incTags) && !Program.IgnoreTagsBlacklist) {
+        if (Conf.Instance.ForbiddenTags.Contains(incTags) && Conf.Instance.UseForbiddenTags) {
             return null;
         }
 

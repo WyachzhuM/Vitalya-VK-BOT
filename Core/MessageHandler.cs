@@ -52,10 +52,9 @@ public partial class MessageHandler {
             var text = await MessageProcessor.KeepUpConversation();
             Answer(message, text);
         });
-        AddCommand("пахавать)", (message, alias, args) => AnswerAsync(message, "Сегодня не жрешь"));
     }
 
-    private ServiceEndpoint ServiceEndpoint { get; }
+    public ServiceEndpoint ServiceEndpoint { get; }
 
     private static void AddCommand(string command, CommandHandler handler) {
         Debug.Assert(!CommandHandlers.ContainsKey(command));

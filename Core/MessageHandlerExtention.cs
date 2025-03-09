@@ -195,7 +195,15 @@ public partial class MessageHandler {
     private async Task HandleHCommand(Message message, string alias, string tags) {
         L.I($"Requesting Danbooru with tags: {tags}");
 
-        var (imageUrl, err) = await ServiceEndpoint.DanbooruApi.RandomImageAsync(tags);
+
+        string? imageUrl, err;
+        try {
+            (imageUrl, err) = await ServiceEndpoint.DanbooruApi.RandomImageAsync(tags);
+        } catch (Exception e) {
+            L.E("Failed to find XXX", e);
+            Answer(message, "Что-то пошло не так, попробуйте позже");
+            return;
+        }
 
         if (imageUrl != null) {
             L.I($"Found image URL: {imageUrl}");

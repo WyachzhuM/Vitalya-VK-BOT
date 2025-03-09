@@ -145,7 +145,7 @@ public class DanbooruApi {
             if (post.FileUrl == null) {
                 // Без понятия
                 if (post.TagString.Split(' ').Intersect(alwaysExclude).Any())
-                    L.I("Got loli or shota in tags");
+                    L.I("Got loli or shota in tags. Retrying");
                 else
                     L.E("post.FileUrl is null");
 
@@ -159,7 +159,7 @@ public class DanbooruApi {
             L.I($"Got {post.FileUrl.Split('.')[^1]} format. Retrying");
         }
         
-        return (null, "");
+        return (null, "Извините, не удалось найти изображение аниме");
     }
 }
 

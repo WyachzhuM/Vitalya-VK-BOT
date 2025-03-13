@@ -31,6 +31,12 @@ public static class Conf {
 
         [JsonPropertyName("auto_update_chats")]
         public bool AutoUpdateChats { get; init; }
+        
+        [JsonPropertyName("blacklist")]
+        public List<string> ForbiddenTags { get; init; }
+        
+        [JsonPropertyName("blacklist_enabled")]
+        public bool UseForbiddenTags { get; init; }
 
         public Dictionary<string, JsonElement> AdditionalData { get; init; }
 

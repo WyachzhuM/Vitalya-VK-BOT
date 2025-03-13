@@ -119,19 +119,8 @@ public partial class MessageHandler {
         }
     }
 
-    private async Task HandleAnimeCommand(Message message, string alias, string args) {
-        var commandText = message.Text.ToLower().Trim();
-        var commandParts = commandText.Split([' '], 3);
+    private async Task HandleAnimeCommand(Message message, string alias, string tags) {
 
-        var tags = "";
-
-        if (args == "") {
-            if (commandParts.Length >= 3) tags = commandParts[2].Trim();
-        } else {
-            tags = args;
-        }
-
-        // Если теги не указаны, будут использоваться отрицательные теги по умолчанию
         L.I($"Requesting Safebooru with tags: {tags}");
 
         var randomPost = await ServiceEndpoint.SafebooruApi.GetRandomPostAsync(tags);
@@ -203,18 +192,16 @@ public partial class MessageHandler {
         }
     }
 
-    private async Task HandleHCommand(Message message, string alias, string args) {
-        var isForb = false;
+    private async Task HandleHCommand(Message message, string alias, string tags) {
+        L.I($"Requesting Danbooru with tags: {tags}");
 
-        var onForbriddenTag = () => { isForb = true; };
 
-        // Если теги не указаны, будут использоваться отрицательные теги по умолчанию
-        L.I($"Requesting Danbooru with tags: {args}");
-
-        var imageUrl = await ServiceEndpoint.DanbooruApi.RandomImageAsync(onForbriddenTag, args);
-
-        if (isForb && !Program.IgnoreTagsBlacklist) {
-            L.I("Found forbidden tags, aborting");
+        string? imageUrl, err;
+        try {
+            (imageUrl, err) = await ServiceEndpoint.DanbooruApi.RandomImageAsync(tags);
+        } catch (Exception e) {
+            L.E("Failed to find XXX", e);
+            Answer(message, "Что-то пошло не так, попробуйте позже");
             return;
         }
 
@@ -230,7 +217,7 @@ public partial class MessageHandler {
                     Action = new MessageKeyboardButtonAction {
                         Type = VkNet.Enums.StringEnums.KeyboardButtonActionType.Text,
                         Label = "Еще!",
-                        Payload = JsonConvert.SerializeObject(new { command = "hen", _tags = args })
+                        Payload = JsonConvert.SerializeObject(new { command = "hen", _tags = tags })
                     }
                 };
 
@@ -258,7 +245,7 @@ public partial class MessageHandler {
             }
         } else {
             L.I("No anime image found.");
-            Answer(message, "Извините, не удалось найти изображение аниме.");
+            Answer(message, err + ".");
         }
     }
 

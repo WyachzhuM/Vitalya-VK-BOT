@@ -83,7 +83,7 @@ public class DanbooruApi {
             cache[tag] = tagCache;
         }
 
-        var tagsByRarity = cache.OrderBy(p => p.Value).ToList();
+        var tagsByRarity = cache.OrderBy(p => p.Value.count).ToList();
         var tagsHash = string.Join(' ', tagsByRarity.Select(p => p.Key));
 
         for (var attempt = 0; attempt < 5; attempt++) {

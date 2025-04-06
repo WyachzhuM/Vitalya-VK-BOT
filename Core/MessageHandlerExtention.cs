@@ -209,9 +209,18 @@ public partial class MessageHandler {
             L.I($"Found image URL: {imageUrl}");
 
             try {
-                var photo = await _bot.UploadImageFrom(imageUrl, ServiceEndpoint.DanbooruApi.Client);
-                if (photo == null)
-                    return;
+                // ВКНЕТ ГОВНО ЕБАНОЕ
+                IEnumerable<Photo>? photo = null;
+                IEnumerable<Attachment>? gif = null;
+                if (imageUrl.Split('.')[^1] != "gif") {
+                    photo = await _bot.UploadImageFrom(imageUrl, ServiceEndpoint.DanbooruApi.Client);
+                    if (photo == null)
+                        return;
+                } else {
+                    gif = await _bot.UploadGifFrom(imageUrl, message.PeerId, ServiceEndpoint.DanbooruApi.Client);
+                    if (gif == null)
+                        return;
+                }
 
                 var b = new MessageKeyboardButton {
                     Action = new MessageKeyboardButtonAction {
@@ -233,7 +242,7 @@ public partial class MessageHandler {
                 _bot.Api.Messages.Send(new MessagesSendParams {
                     RandomId = Rand.Next(),
                     PeerId = message.PeerId,
-                    Attachments = photo,
+                    Attachments = photo != null ? photo : [gif!.First().Instance],
                     ReplyTo = message.Id,
                     Keyboard = keyboard
                 });

@@ -120,6 +120,44 @@ public class Bot {
             return null;
         }
     }
+    
+    /// Asynchronously upload gif from URL
+    public async Task<ReadOnlyCollection<Attachment>?> UploadGifFrom(string gifUrl, long peerId, HttpClient client) {
+        var sw = new Stopwatch();
+        sw.Start();
+        var uploadUrl = Api.Docs.GetMessagesUploadServer(peerId).UploadUrl;
+
+        try {
+            using var response = await client.GetAsync(gifUrl, HttpCompletionOption.ResponseHeadersRead);
+            if (!response.IsSuccessStatusCode) {
+                L.W($"Failed to download gif from {gifUrl} (Status code: {response.StatusCode})");
+                return null;
+            }
+
+            await using var gifStream = await response.Content.ReadAsStreamAsync();
+            using var content = new MultipartFormDataContent();
+
+            var fileContent = new StreamContent(gifStream);
+            fileContent.Headers.ContentType = MediaTypeHeaderValue.Parse("image/gif");
+            content.Add(fileContent, "file", "image.gif");
+
+            using var httpClient = new HttpClient();
+            var vkResponse = await httpClient.PostAsync(uploadUrl, content);
+            if (!vkResponse.IsSuccessStatusCode) {
+                L.W($"Failed to upload image to {uploadUrl} (Status code: {response.StatusCode})");
+                return null;
+            }
+
+            var responseString = await vkResponse.Content.ReadAsStringAsync();
+            var gif = Api.Docs.Save(responseString, "asdasd");
+            sw.Stop();
+            L.I($"Photo copied to VK in {sw.ElapsedMilliseconds} ms");
+            return gif;
+        } catch (Exception e) {
+            L.E($"Failed to download image from {gifUrl}", e);
+            return null;
+        }
+    }
 
     public async Task<List<User>> GetChatMembers(long peerId) {
         if (Conf.Instance.AutoUpdateChats) {

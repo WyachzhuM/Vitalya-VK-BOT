@@ -75,7 +75,7 @@ public class DanbooruApi {
                 return (null, $"Ничего нет с тегом {tag}");
 
             var count = (int)jArray[0]["post_count"];
-            var order = Enumerable.Range(0, count).ToArray();
+            var order = Enumerable.Range(0, Math.Min(count, 1000)).ToArray();
             Rand.Shuffle(order);
             var tagCache = new TagCache(count, order);
             TagsCache.Add(tag, tagCache);
@@ -100,7 +100,7 @@ public class DanbooruApi {
                     // Один тег, ограничиваюсь количеством постов с ним
                     var tagCache = tagsByRarity[0].Value;
                     url = $"{MasterUrl}posts.json?" +
-                          $"page={Math.Min(tagCache.order[tagCache.i++], 1000)}" +
+                          $"page={tagCache.order[tagCache.i++]}" +
                           $"&limit=1" +
                           $"&tags={tagsByRarity[0].Key}+-loli";
                     if (tagCache.i > tagCache.count)

@@ -19,12 +19,12 @@ public class DanbooruApi {
 
     private static readonly Random Rand = new Random();
     private static readonly Dictionary<string, int> TagsCounters = [];
-    public readonly Dictionary<string, int> TagsCache;
+    public readonly Dictionary<string, TagCache> TagsCache;
 
     public DanbooruApi() {
         if (File.Exists("tags_cache.json")) {
             var text = File.ReadAllText("tags_cache.json");
-            TagsCache = JsonConvert.DeserializeObject<Dictionary<string, int>>(text) ?? [];
+            TagsCache = JsonConvert.DeserializeObject<Dictionary<string, TagCache>>(text) ?? [];
         } else {
             TagsCache = [];
         }
@@ -51,7 +51,7 @@ public class DanbooruApi {
         var tags = tagsString.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
             .Select(Uri.EscapeDataString).ToList();
 
-        // Исключаем чилд по
+        // Исключаем нерабочие теги
         if (tags.Intersect(alwaysExclude).Any()) 
             return (null, "Ничего нет с такими тегами");
         
@@ -60,10 +60,10 @@ public class DanbooruApi {
             return (null, "Я эту хуйню искать не буду");
         
         // Узнаем количество постов с каждым тегом
-        Dictionary<string, int> postsCount = [];
+        Dictionary<string, TagCache> cache = [];
         foreach (var tag in tags) {
             if (TagsCache.TryGetValue(tag, out var value)) {
-                postsCount[tag] = value;
+                cache[tag] = value;
                 continue;
             }
             var url1 = $"{MasterUrl}tags.json?search[name_or_alias_matches]={tag}&search[hide_empty]=true";
@@ -75,12 +75,15 @@ public class DanbooruApi {
                 return (null, $"Ничего нет с тегом {tag}");
 
             var count = (int)jArray[0]["post_count"];
-            TagsCache.Add(tag, count);
+            var order = Enumerable.Range(0, Math.Min(count, 1000)).ToArray();
+            Rand.Shuffle(order);
+            var tagCache = new TagCache(count, order);
+            TagsCache.Add(tag, tagCache);
             L.I($"{tag}: {count}");
-            postsCount[tag] = count;
+            cache[tag] = tagCache;
         }
 
-        var tagsByRarity = postsCount.OrderBy(p => p.Value).ToList();
+        var tagsByRarity = cache.OrderBy(p => p.Value.count).ToList();
         var tagsHash = string.Join(' ', tagsByRarity.Select(p => p.Key));
 
         for (var attempt = 0; attempt < 5; attempt++) {
@@ -95,10 +98,13 @@ public class DanbooruApi {
                     break;
                 case 1:
                     // Один тег, ограничиваюсь количеством постов с ним
+                    var tagCache = tagsByRarity[0].Value;
                     url = $"{MasterUrl}posts.json?" +
-                          $"page={Rand.Next(Math.Min(tagsByRarity[0].Value, 1000))}" +
+                          $"page={tagCache.order[tagCache.i++]}" +
                           $"&limit=1" +
                           $"&tags={tagsByRarity[0].Key}+-loli";
+                    if (tagCache.i == tagCache.count)
+                        tagCache.i = 0;
                     break;
                 default: 
                     // Много тегов, не могу узнать количество постов, начинаю с первого
@@ -143,12 +149,13 @@ public class DanbooruApi {
             }
 
             if (post.FileUrl == null) {
-                // Без понятия
                 if (post.TagString.Split(' ').Intersect(alwaysExclude).Any())
                     L.I("Got loli or shota in tags. Retrying");
+                else if (post.IsDeleted)
+                    L.I("Got deleted post");
                 else
-                    L.E("post.FileUrl is null");
-
+                    L.E("post.fileUrl is null");
+                
                 continue;
             }
 
@@ -160,6 +167,12 @@ public class DanbooruApi {
         }
         
         return (null, "Извините, не удалось найти изображение аниме");
+    }
+    
+    public class TagCache(int count, int[] order) {
+        public readonly int count = count;
+        public readonly int[] order = order;
+        public int i = 0;
     }
 }
 
@@ -175,6 +188,7 @@ public class Post {
     [JsonPropertyName("file_url")] public string? FileUrl { get; set; }
     [JsonPropertyName("preview_file_url")] public string PreviewFileUrl { get; set; }
     [JsonPropertyName("tag_string")] public string TagString { get; set; }
+    [JsonPropertyName("is_deleted")] public bool IsDeleted { get; set; }
 
     public override string ToString() => $"Id: {Id}, FileUrl: {FileUrl}, Tags: {TagString}";
 }

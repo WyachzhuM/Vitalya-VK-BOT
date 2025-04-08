@@ -1,5 +1,4 @@
-﻿using System.Collections.ObjectModel;
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.Net.Http.Headers;
 using SixLabors.ImageSharp.Formats.Jpeg;
 using vkbot_vitalya.Config;
@@ -52,7 +51,7 @@ public class Bot {
     }
 
     /// Upload new image to VK
-    public async Task<ReadOnlyCollection<Photo>?> UploadImage(Image image) {
+    public async Task<Photo?> UploadImage(Image image) {
         var sw = new Stopwatch();
         sw.Start();
         var uploadUrl = Api.Photo.GetMessagesUploadServer((long)Auth.Instance.GroupId).UploadUrl;
@@ -74,14 +73,14 @@ public class Bot {
         }
 
         var responseString = await response.Content.ReadAsStringAsync();
-        var photos = Api.Photo.SaveMessagesPhoto(responseString);
+        var photo = Api.Photo.SaveMessagesPhoto(responseString)[0];
         sw.Stop();
         L.I($"Photo uploaded to VK in {sw.ElapsedMilliseconds} ms");
-        return photos;
+        return photo;
     }
 
     /// Asynchronously upload image from URL
-    public async Task<ReadOnlyCollection<Photo>?> UploadImageFrom(string imageUrl, HttpClient client) {
+    public async Task<Photo?> UploadImageFrom(string imageUrl, HttpClient client) {
         var sw = new Stopwatch();
         sw.Start();
         var uploadUrl = Api.Photo.GetMessagesUploadServer((long)Auth.Instance.GroupId).UploadUrl;
@@ -97,26 +96,63 @@ public class Bot {
             using var imageStream = new MemoryStream();
             await ImageProcessor.ResizeAndCompressImage(originalImageStream, imageStream);
             imageStream.Position = 0;
-            using var content = new MultipartFormDataContent();
-
             var fileContent = new StreamContent(imageStream);
             fileContent.Headers.ContentType = MediaTypeHeaderValue.Parse("image/jpeg");
+            using var content = new MultipartFormDataContent();
             content.Add(fileContent, "photo", "image.jpeg");
 
             using var httpClient = new HttpClient();
             var vkResponse = await httpClient.PostAsync(uploadUrl, content);
             if (!vkResponse.IsSuccessStatusCode) {
-                L.W($"Failed to upload image to {uploadUrl} (Status code: {response.StatusCode})");
+                L.W($"Failed to upload image to VK (Status code: {response.StatusCode})");
                 return null;
             }
 
             var responseString = await vkResponse.Content.ReadAsStringAsync();
-            var photo = Api.Photo.SaveMessagesPhoto(responseString);
+            var photo = Api.Photo.SaveMessagesPhoto(responseString)[0];
             sw.Stop();
             L.I($"Photo copied to VK in {sw.ElapsedMilliseconds} ms");
             return photo;
         } catch (Exception e) {
-            L.E($"Failed to download image from {imageUrl}", e);
+            L.E($"Failed to upload image from {imageUrl}", e);
+            return null;
+        }
+    }
+    
+    /// Asynchronously upload gif from URL
+    public async Task<MediaAttachment?> UploadGifFrom(string gifUrl, long peerId, HttpClient client) {
+        var sw = new Stopwatch();
+        sw.Start();
+        var uploadUrl = Api.Docs.GetMessagesUploadServer(peerId).UploadUrl;
+
+        try {
+            using var response = await client.GetAsync(gifUrl, HttpCompletionOption.ResponseHeadersRead);
+            if (!response.IsSuccessStatusCode) {
+                L.W($"Failed to download gif from {gifUrl} (Status code: {response.StatusCode})");
+                return null;
+            }
+
+            await using var gifStream = await response.Content.ReadAsStreamAsync();
+            using var content = new MultipartFormDataContent();
+
+            var fileContent = new StreamContent(gifStream);
+            fileContent.Headers.ContentType = MediaTypeHeaderValue.Parse("image/gif");
+            content.Add(fileContent, "file", "image.gif");
+
+            using var httpClient = new HttpClient();
+            var vkResponse = await httpClient.PostAsync(uploadUrl, content);
+            if (!vkResponse.IsSuccessStatusCode) {
+                L.W($"Failed to upload gif to {uploadUrl} (Status code: {response.StatusCode})");
+                return null;
+            }
+
+            var responseString = await vkResponse.Content.ReadAsStringAsync();
+            var gif = Api.Docs.Save(responseString, gifUrl.Split(['\\', '/'])[^1])[0];
+            sw.Stop();
+            L.I($"Gif copied to VK in {sw.ElapsedMilliseconds} ms");
+            return gif.Instance;
+        } catch (Exception e) {
+            L.E($"Failed to upload gif from {gifUrl}", e);
             return null;
         }
     }

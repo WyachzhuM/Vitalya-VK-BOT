@@ -1,3 +1,4 @@
 bin
 obj
 auth.json
+forbidden_tags.json

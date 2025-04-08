@@ -63,7 +63,6 @@ public partial class MessageHandler {
     }
 
     public async Task HandleMessage(Message message) {
-        // todo бля пизда с ботами
         var chatCache = _bot.Saves.Chats.FirstOrDefault(c => c.PeerId == message.PeerId);
         if (chatCache == null) {
             _bot.Saves.AddChat(message.PeerId);

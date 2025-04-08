@@ -51,7 +51,7 @@ public partial class MessageHandler {
                 RandomId = Rand.Next(),
                 PeerId = message.PeerId,
                 ReplyTo = message.Id,
-                Attachments = photo
+                Attachments = [photo]
             });
 
             L.I("Processed photo sent to user.");
@@ -87,7 +87,7 @@ public partial class MessageHandler {
                     RandomId = Rand.Next(),
                     PeerId = message.PeerId,
                     ReplyTo = message.Id,
-                    Attachments = photo,
+                    Attachments = [photo],
                     Message = text
                 });
 
@@ -176,7 +176,7 @@ public partial class MessageHandler {
                 _bot.Api.Messages.Send(new MessagesSendParams {
                     RandomId = Rand.Next(),
                     PeerId = message.PeerId,
-                    Attachments = photo,
+                    Attachments = [photo],
                     ReplyTo = message.Id,
                     Keyboard = keyboard
                 });
@@ -205,47 +205,52 @@ public partial class MessageHandler {
             return;
         }
 
-        if (imageUrl != null) {
-            L.I($"Found image URL: {imageUrl}");
-
-            try {
-                var photo = await _bot.UploadImageFrom(imageUrl, ServiceEndpoint.DanbooruApi.Client);
-                if (photo == null)
-                    return;
-
-                var b = new MessageKeyboardButton {
-                    Action = new MessageKeyboardButtonAction {
-                        Type = VkNet.Enums.StringEnums.KeyboardButtonActionType.Text,
-                        Label = "Еще!",
-                        Payload = JsonConvert.SerializeObject(new { command = "hen", _tags = tags })
-                    }
-                };
-
-                List<MessageKeyboardButton> buttonsRow1 = [b];
-
-                var values = new List<List<MessageKeyboardButton>> { buttonsRow1 };
-
-                var keyboard = new MessageKeyboard {
-                    Buttons = values,
-                    Inline = true
-                };
-
-                _bot.Api.Messages.Send(new MessagesSendParams {
-                    RandomId = Rand.Next(),
-                    PeerId = message.PeerId,
-                    Attachments = photo,
-                    ReplyTo = message.Id,
-                    Keyboard = keyboard
-                });
-
-                L.I("Anime image sent to user.");
-            } catch (Exception ex) {
-                L.I($"Exception in HandleAnimeCommand: {ex.Message}");
-                L.I($"Stack Trace: {ex.StackTrace}");
-            }
-        } else {
+        if (imageUrl == null) {
             L.I("No anime image found.");
             Answer(message, err + ".");
+            return;
+        }
+
+        L.I($"Found image URL: {imageUrl}");
+
+        try {
+            MediaAttachment? attachment;
+            if (imageUrl.Split('.')[^1] != "gif") 
+                attachment = await _bot.UploadImageFrom(imageUrl, ServiceEndpoint.DanbooruApi.Client);
+            else 
+                attachment = await _bot.UploadGifFrom(imageUrl, message.PeerId, ServiceEndpoint.DanbooruApi.Client);
+            
+            if (attachment == null)
+                return;
+            
+            var b = new MessageKeyboardButton {
+                Action = new MessageKeyboardButtonAction {
+                    Type = VkNet.Enums.StringEnums.KeyboardButtonActionType.Text,
+                    Label = "Еще!",
+                    Payload = JsonConvert.SerializeObject(new { command = "hen", _tags = tags })
+                }
+            };
+
+            List<MessageKeyboardButton> buttonsRow1 = [b];
+
+            var values = new List<List<MessageKeyboardButton>> { buttonsRow1 };
+
+            var keyboard = new MessageKeyboard {
+                Buttons = values,
+                Inline = true
+            };
+
+            _bot.Api.Messages.Send(new MessagesSendParams {
+                RandomId = Rand.Next(),
+                PeerId = message.PeerId,
+                Attachments = [attachment],
+                ReplyTo = message.Id,
+                Keyboard = keyboard
+            });
+
+            L.I("Anime image sent to user.");
+        } catch (Exception e) {
+            L.E("Exception in HandleAnimeCommand", e);
         }
     }
 
@@ -273,8 +278,8 @@ public partial class MessageHandler {
             return;
         }
 
-        var photos = await _bot.UploadImage(image);
-        if (photos == null) return;
+        var photo = await _bot.UploadImage(image);
+        if (photo == null) return;
 
         var text = await MessageProcessor.KeepUpConversation();
 
@@ -282,7 +287,7 @@ public partial class MessageHandler {
             RandomId = Rand.Next(),
             PeerId = message.PeerId,
             ReplyTo = message.Id,
-            Attachments = photos,
+            Attachments = [photo],
             Message = $"{args} {text} \n{foundLocation.Item1}\n{foundLocation.Item2}",
             //Lat = long.Parse(output.Item2.lat),
             //Longitude = long.Parse(output.Item2.lon)
@@ -359,15 +364,15 @@ public partial class MessageHandler {
 
         var processedImage = await sourceImage.Funeral();
 
-        var photos = await _bot.UploadImage(processedImage);
-        if (photos == null) return;
+        var photo = await _bot.UploadImage(processedImage);
+        if (photo == null) return;
 
         _bot.Api.Messages.Send(new MessagesSendParams {
             Message = "RIP🥀",
             RandomId = Rand.Next(),
             PeerId = message.PeerId,
             // ReplyTo = message.Id,
-            Attachments = photos
+            Attachments = [photo]
         });
 
         L.I("Processed photo sent to user.");

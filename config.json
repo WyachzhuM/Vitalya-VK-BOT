@@ -25,14 +25,5 @@
     "test": [ "test" ],
     "update_chat": [ "update_chat" ]
   },
-  "blacklist_enabled": false,
-  "blacklist": [
-    "futanari", "gay", "furry", "penis", "testicles", "huge penis", "erection", "inflation",
-    "loli", "child on child", "yaoi", "2boys", "nazi", "trap", "succubus", "corpse",
-    "coprophilic", "cunt", "multiple boys", "yaoi", "2boys", "multiple_boys", "male_penetrated",
-    "bara", "male_focus", "muscular_male", "cum_on_male", "rotten", "coprophagia",
-    "scat", "diarrhea", "poop", "squat toilet", "pee", "toilet use", "guro", "ero guro",
-    "vomit", "fart", "tentacles", "peeing", "personality excrement", "defecating",
-    "enema", "execution", "hazbin_hotel"
-  ]
+  "blacklist_enabled": false
 }

@@ -51,7 +51,7 @@ public class DanbooruApi {
         var tags = tagsString.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
             .Select(Uri.EscapeDataString).ToList();
 
-        // Исключаем чилд по
+        // Исключаем нерабочие теги
         if (tags.Intersect(alwaysExclude).Any()) 
             return (null, "Ничего нет с такими тегами");
         
@@ -149,12 +149,13 @@ public class DanbooruApi {
             }
 
             if (post.FileUrl == null) {
-                // Без понятия
                 if (post.TagString.Split(' ').Intersect(alwaysExclude).Any())
                     L.I("Got loli or shota in tags. Retrying");
+                else if (post.IsDeleted)
+                    L.I("Got deleted post");
                 else
-                    L.E("post.FileUrl is null");
-
+                    L.E("post.fileUrl is null");
+                
                 continue;
             }
 
@@ -187,6 +188,7 @@ public class Post {
     [JsonPropertyName("file_url")] public string? FileUrl { get; set; }
     [JsonPropertyName("preview_file_url")] public string PreviewFileUrl { get; set; }
     [JsonPropertyName("tag_string")] public string TagString { get; set; }
+    [JsonPropertyName("is_deleted")] public bool IsDeleted { get; set; }
 
     public override string ToString() => $"Id: {Id}, FileUrl: {FileUrl}, Tags: {TagString}";
 }

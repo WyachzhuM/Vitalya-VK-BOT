@@ -32,8 +32,7 @@ public static class Conf {
         [JsonPropertyName("auto_update_chats")]
         public bool AutoUpdateChats { get; init; }
         
-        [JsonPropertyName("blacklist")]
-        public List<string> ForbiddenTags { get; init; }
+        public List<string> ForbiddenTags { get; set; }
         
         [JsonPropertyName("blacklist_enabled")]
         public bool UseForbiddenTags { get; init; }
@@ -46,8 +45,14 @@ public static class Conf {
                 DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
             };
             try {
-                return JsonSerializer.Deserialize<Configuration>(json, jsonSerializerOptions)
-                       ?? throw new Exception("Invalid config file");
+                var configuration = JsonSerializer.Deserialize<Configuration>(json, jsonSerializerOptions)
+                                    ?? throw new Exception("Invalid config file");
+                if (File.Exists("forbidden_tags.json"))
+                    configuration.ForbiddenTags =
+                        JsonSerializer.Deserialize<List<string>>(File.ReadAllText("forbidden_tags.json")) ?? [];
+                else
+                    configuration.ForbiddenTags = [];
+                return configuration;
             } catch (Exception e) {
                 throw new Exception("Failed to load config file", e);
             }

@@ -1,16 +1,22 @@
 ﻿using System.Text;
 using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
 using vkbot_vitalya.Config;
 using vkbot_vitalya.Core;
 using vkbot_vitalya.Core.Saver;
-using vkbot_vitalya.Services;
 using VkNet.Exception;
 using VkNet.Model;
 
 
 namespace vkbot_vitalya;
-
+/* todo
+ Кеширование пикч в альбоме/вк/локально
+ Выход за 1000 страниц
+ Адаптация для юзербота
+ Добавить другие источники пикч
+ Возможность запуска с ведройда
+ Прочекать логи на ошибки - там много необработанных сетевых исключений и ошибок вкалтакте
+ Переход на обертку вк/тг апи
+ */
 public static class Program {
     private static MessageHandler _handler;
     private static MessageSaver _messageSaver;

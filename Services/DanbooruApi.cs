@@ -19,15 +19,25 @@ public class DanbooruApi {
 
     private static readonly Random Rand = new Random();
     private static readonly Dictionary<string, int> TagsCounters = [];
-    public readonly Dictionary<string, TagCache> TagsCache;
+    public static readonly Dictionary<string, TagCache> TagsCache;
+    public static readonly Dictionary<string, string> AttachmentsCache;
 
-    public DanbooruApi() {
+    static DanbooruApi() {
         if (File.Exists("tags_cache.json")) {
             var text = File.ReadAllText("tags_cache.json");
             TagsCache = JsonConvert.DeserializeObject<Dictionary<string, TagCache>>(text) ?? [];
         } else {
             TagsCache = [];
         }
+        if (File.Exists("vk_photo_cache.json")) {
+            var text = File.ReadAllText("vk_photo_cache.json");
+            AttachmentsCache = JsonConvert.DeserializeObject<Dictionary<string, string>>(text) ?? [];
+        } else {
+            AttachmentsCache = [];
+        }
+    }
+    
+    public DanbooruApi() {
         ApiKey = Auth.Instance.DanbooruApikey;
         Login = Auth.Instance.DanbooruLogin;
 

@@ -4,6 +4,7 @@ using SixLabors.ImageSharp.Formats.Jpeg;
 using vkbot_vitalya.Config;
 using vkbot_vitalya.Core;
 using vkbot_vitalya.Mappers;
+using vkbot_vitalya.Services;
 using vkbot_vitalya.Services.Generators;
 using VkNet;
 using VkNet.Model;
@@ -111,6 +112,8 @@ public class Bot {
             var responseString = await vkResponse.Content.ReadAsStringAsync();
             var photo = Api.Photo.SaveMessagesPhoto(responseString)[0];
             sw.Stop();
+            var photoCache = $"photo{photo.OwnerId}_{photo.Id}_{photo.AccessKey}";
+            DanbooruApi.AttachmentsCache.Add(imageUrl, photoCache);
             L.I($"Photo copied to VK in {sw.ElapsedMilliseconds} ms");
             return photo;
         } catch (Exception e) {
@@ -147,10 +150,12 @@ public class Bot {
             }
 
             var responseString = await vkResponse.Content.ReadAsStringAsync();
-            var gif = Api.Docs.Save(responseString, gifUrl.Split(['\\', '/'])[^1])[0];
+            var gif = Api.Docs.Save(responseString, gifUrl.Split('\\', '/')[^1])[0].Instance;
+            var photoCache = $"doc{gif.OwnerId}_{gif.Id}_{gif.AccessKey}";
+            DanbooruApi.AttachmentsCache.Add(gifUrl, photoCache);
             sw.Stop();
             L.I($"Gif copied to VK in {sw.ElapsedMilliseconds} ms");
-            return gif.Instance;
+            return gif;
         } catch (Exception e) {
             L.E($"Failed to upload gif from {gifUrl}", e);
             return null;

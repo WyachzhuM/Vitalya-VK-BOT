@@ -214,12 +214,30 @@ public partial class MessageHandler {
         L.I($"Found image URL: {imageUrl}");
 
         try {
+            // ВКНЕТ ГОВНО
             MediaAttachment? attachment;
-            if (imageUrl.Split('.')[^1] != "gif") 
-                attachment = await _bot.UploadImageFrom(imageUrl, ServiceEndpoint.DanbooruApi.Client);
-            else 
-                attachment = await _bot.UploadGifFrom(imageUrl, message.PeerId, ServiceEndpoint.DanbooruApi.Client);
-            
+            if (imageUrl.Split('.')[^1] == "gif") {
+                if (DanbooruApi.AttachmentsCache.TryGetValue(imageUrl, out var value)) {
+                    attachment = new Document();
+                    var a = value.Split('_');
+                    attachment.OwnerId = long.Parse(a[0][3..]);
+                    attachment.Id = long.Parse(a[1]);
+                    attachment.AccessKey = a[2];
+                } else {
+                    attachment = await _bot.UploadGifFrom(imageUrl, message.PeerId, ServiceEndpoint.DanbooruApi.Client);
+                }
+            } else {
+                if (DanbooruApi.AttachmentsCache.TryGetValue(imageUrl, out var value)) {
+                    attachment = new Photo();
+                    var a = value.Split('_');
+                    attachment.OwnerId = long.Parse(a[0][5..]);
+                    attachment.Id = long.Parse(a[1]);
+                    attachment.AccessKey = a[2];
+                } else {
+                    attachment = await _bot.UploadImageFrom(imageUrl, ServiceEndpoint.DanbooruApi.Client);
+                }
+            }
+
             if (attachment == null)
                 return;
             

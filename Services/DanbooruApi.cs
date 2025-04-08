@@ -103,7 +103,7 @@ public class DanbooruApi {
                           $"page={tagCache.order[tagCache.i++]}" +
                           $"&limit=1" +
                           $"&tags={tagsByRarity[0].Key}+-loli";
-                    if (tagCache.i > tagCache.count)
+                    if (tagCache.i == tagCache.count)
                         tagCache.i = 0;
                     break;
                 default: 

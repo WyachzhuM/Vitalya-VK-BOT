@@ -7,7 +7,6 @@ using vkbot_vitalya.Services;
 using VkNet.Exception;
 using VkNet.Model;
 
-
 namespace vkbot_vitalya;
 /* todo
  Кеширование пикч в альбоме/вк/локально
@@ -63,7 +62,7 @@ public static class Program {
         var text = JsonConvert.SerializeObject(DanbooruApi.TagsCache);
         File.WriteAllText("tags_cache.json", text);
         text = JsonConvert.SerializeObject(DanbooruApi.AttachmentsCache);
-        File.WriteAllText("vk_photo_cache.json", text);
+        File.WriteAllText("danbooru_cache.json", text);
         L.I($"Bot stopped at {DateTime.Now}");
     }
 

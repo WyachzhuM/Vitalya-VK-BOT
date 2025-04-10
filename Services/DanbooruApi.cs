@@ -20,43 +20,43 @@ public class DanbooruApi {
     private static readonly Random Rand = new Random();
     private static readonly Dictionary<string, int> TagsCounters = [];
     public static readonly Dictionary<string, TagCache> TagsCache;
-    public static readonly Dictionary<string, string> AttachmentsCache;
+    public static readonly Dictionary<long, string> AttachmentsCache;
 
     static DanbooruApi() {
-        if (File.Exists("tags_cache.json")) {
-            var text = File.ReadAllText("tags_cache.json");
-            TagsCache = JsonConvert.DeserializeObject<Dictionary<string, TagCache>>(text) ?? [];
-        } else {
-            TagsCache = [];
-        }
-        if (File.Exists("vk_photo_cache.json")) {
-            var text = File.ReadAllText("vk_photo_cache.json");
-            AttachmentsCache = JsonConvert.DeserializeObject<Dictionary<string, string>>(text) ?? [];
-        } else {
-            AttachmentsCache = [];
-        }
+        if (!File.Exists("tags_cache.json"))
+            File.WriteAllText("tags_cache.json", "{}");
+        
+        var text1 = File.ReadAllText("tags_cache.json");
+        TagsCache = JsonConvert.DeserializeObject<Dictionary<string, TagCache>>(text1) ?? [];
+
+        if (!File.Exists("danbooru_cache.json"))
+            File.WriteAllText("danbooru_cache.json", "{}");
+
+        var text2 = File.ReadAllText("danbooru_cache.json");
+        AttachmentsCache = JsonConvert.DeserializeObject<Dictionary<long, string>>(text2) ?? [];
     }
     
     public DanbooruApi() {
         ApiKey = Auth.Instance.DanbooruApikey;
         Login = Auth.Instance.DanbooruLogin;
 
-        Client = ProxyClient.GetProxyHttpClient(Auth.Instance.ProxyAdress,
+        HttpClient = ProxyClient.GetProxyHttpClient(Auth.Instance.ProxyAdress,
             new NetworkCredential(Auth.Instance.ProxyLogin, Auth.Instance.ProxyPassword), "vk-bot-vitalya");
 
         var byteArray = Encoding.ASCII.GetBytes($"{Login}:{ApiKey}");
-        Client.DefaultRequestHeaders.Authorization =
+        HttpClient.DefaultRequestHeaders.Authorization =
             new AuthenticationHeaderValue("Basic", Convert.ToBase64String(byteArray));
     }
 
-    public HttpClient Client { get; }
+    public HttpClient HttpClient { get; }
 
     private string ApiKey { get; }
     private string Login { get; }
 
-    private static readonly string[] AllowedFormats = ["jpg", "jpeg", "png", "gif", "webp"];
+    private static readonly string[] AllowedFormats = ["jpg", "jpeg", "png", "gif", "webp"]; /* webm, mp4 */
 
-    public async Task<(string?, string?)> RandomImageAsync(string tagsString = "") {
+    public async Task<(Post?, string?)> RandomPostAsync(string tagsString = "") {
+        /* Страницы от 1 до 1000 включительно */
         string[] alwaysExclude = ["loli", "shota"];
         var tags = tagsString.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
             .Select(Uri.EscapeDataString).ToList();
@@ -77,7 +77,7 @@ public class DanbooruApi {
                 continue;
             }
             var url1 = $"{MasterUrl}tags.json?search[name_or_alias_matches]={tag}&search[hide_empty]=true";
-            using var response1 = await Client.GetAsync(url1);
+            using var response1 = await HttpClient.GetAsync(url1);
             response1.EnsureSuccessStatusCode();
             var responseBody1 = await response1.Content.ReadAsStringAsync();
             var jArray = JArray.Parse(responseBody1);
@@ -85,7 +85,7 @@ public class DanbooruApi {
                 return (null, $"Ничего нет с тегом {tag}");
 
             var count = (int)jArray[0]["post_count"];
-            var order = Enumerable.Range(0, Math.Min(count, 1000)).ToArray();
+            var order = Enumerable.Range(1, Math.Min(count, 1000)).ToArray();
             Rand.Shuffle(order);
             var tagCache = new TagCache(count, order);
             TagsCache.Add(tag, tagCache);
@@ -129,7 +129,7 @@ public class DanbooruApi {
 
             L.I($"Requesting URL: {url}");
 
-            using var response = await Client.GetAsync(url);
+            using var response = await HttpClient.GetAsync(url);
             response.EnsureSuccessStatusCode();
 
             var responseBody = await response.Content.ReadAsStringAsync();
@@ -170,7 +170,7 @@ public class DanbooruApi {
             }
 
             if (AllowedFormats.Any(s => post.FileUrl.EndsWith(s))) {
-                return (post.FileUrl, null);
+                return (post, null);
             }
 
             L.I($"Got {post.FileUrl.Split('.')[^1]} format. Retrying");
@@ -178,7 +178,12 @@ public class DanbooruApi {
         
         return (null, "Извините, не удалось найти изображение аниме");
     }
-    
+
+    public async Task<(string?, string?)> RandomImageAsync(string tagsString = "") {
+        var (post, err) = await RandomPostAsync(tagsString);
+        return (post?.FileUrl, err);
+    }
+
     public class TagCache(int count, int[] order) {
         public readonly int count = count;
         public readonly int[] order = order;

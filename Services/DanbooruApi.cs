@@ -1,12 +1,10 @@
-﻿using System.Net;
-using System.Net.Http.Headers;
+﻿using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json.Serialization;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using vkbot_vitalya.Config;
 using vkbot_vitalya.Core;
-using vkbot_vitalya.Core.Requesters;
 using JsonSerializer = System.Text.Json.JsonSerializer;
 
 namespace vkbot_vitalya.Services;
@@ -19,29 +17,34 @@ public class DanbooruApi {
 
     private static readonly Random Rand = new Random();
     private static readonly Dictionary<string, int> TagsCounters = [];
-    public static readonly Dictionary<string, TagCache> TagsCache;
-    public static readonly Dictionary<long, string> AttachmentsCache;
+    public static readonly Dictionary<string, TagCacheEntry> TagsCache;
+    public static readonly Dictionary<long, MediaCacheEntry> MediaCache;
 
     static DanbooruApi() {
-        if (!File.Exists("tags_cache.json"))
-            File.WriteAllText("tags_cache.json", "{}");
+        if (!File.Exists("danbooru_tags_cache.json"))
+            File.WriteAllText("danbooru_tags_cache.json", "{}");
         
-        var text1 = File.ReadAllText("tags_cache.json");
-        TagsCache = JsonConvert.DeserializeObject<Dictionary<string, TagCache>>(text1) ?? [];
+        var text1 = File.ReadAllText("danbooru_tags_cache.json");
+        TagsCache = JsonConvert.DeserializeObject<Dictionary<string, TagCacheEntry>>(text1) ?? [];
 
         if (!File.Exists("danbooru_cache.json"))
             File.WriteAllText("danbooru_cache.json", "{}");
 
         var text2 = File.ReadAllText("danbooru_cache.json");
-        AttachmentsCache = JsonConvert.DeserializeObject<Dictionary<long, string>>(text2) ?? [];
+        MediaCache = JsonConvert.DeserializeObject<Dictionary<long, MediaCacheEntry>>(text2) ?? [];
     }
     
     public DanbooruApi() {
         ApiKey = Auth.Instance.DanbooruApikey;
         Login = Auth.Instance.DanbooruLogin;
 
+        /*
         HttpClient = ProxyClient.GetProxyHttpClient(Auth.Instance.ProxyAdress,
             new NetworkCredential(Auth.Instance.ProxyLogin, Auth.Instance.ProxyPassword), "vk-bot-vitalya");
+        */
+        HttpClient = new HttpClient();
+        HttpClient.DefaultRequestHeaders.UserAgent.ParseAdd(
+            $"vk-bot-vitalya/1.0 (compatible; vk-bot-vitalya/1.0; +http://vk-bot-vitalya.com)");
 
         var byteArray = Encoding.ASCII.GetBytes($"{Login}:{ApiKey}");
         HttpClient.DefaultRequestHeaders.Authorization =
@@ -55,8 +58,9 @@ public class DanbooruApi {
 
     private static readonly string[] AllowedFormats = ["jpg", "jpeg", "png", "gif", "webp"]; /* webm, mp4 */
 
-    public async Task<(Post?, string?)> RandomPostAsync(string tagsString = "") {
-        /* Страницы от 1 до 1000 включительно */
+    public async Task<(DanbooruPost?, string?)> RandomPostAsync(string tagsString = "") {
+        var attempts = 5;
+
         string[] alwaysExclude = ["loli", "shota"];
         var tags = tagsString.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
             .Select(Uri.EscapeDataString).ToList();
@@ -70,7 +74,7 @@ public class DanbooruApi {
             return (null, "Я эту хуйню искать не буду");
         
         // Узнаем количество постов с каждым тегом
-        Dictionary<string, TagCache> cache = [];
+        Dictionary<string, TagCacheEntry> cache = [];
         foreach (var tag in tags) {
             if (TagsCache.TryGetValue(tag, out var value)) {
                 cache[tag] = value;
@@ -87,7 +91,7 @@ public class DanbooruApi {
             var count = (int)jArray[0]["post_count"];
             var order = Enumerable.Range(1, Math.Min(count, 1000)).ToArray();
             Rand.Shuffle(order);
-            var tagCache = new TagCache(count, order);
+            var tagCache = new TagCacheEntry(count, order);
             TagsCache.Add(tag, tagCache);
             L.I($"{tag}: {count}");
             cache[tag] = tagCache;
@@ -96,7 +100,7 @@ public class DanbooruApi {
         var tagsByRarity = cache.OrderBy(p => p.Value.count).ToList();
         var tagsHash = string.Join(' ', tagsByRarity.Select(p => p.Key));
 
-        for (var attempt = 0; attempt < 5; attempt++) {
+        for (var attempt = 0; attempt < attempts; attempt++) {
             string url;
             switch (tagsByRarity.Count) {
                 case 0:
@@ -133,7 +137,7 @@ public class DanbooruApi {
             response.EnsureSuccessStatusCode();
 
             var responseBody = await response.Content.ReadAsStringAsync();
-            var posts = JsonSerializer.Deserialize<List<Post>>(responseBody);
+            var posts = JsonSerializer.Deserialize<List<DanbooruPost>>(responseBody);
 
             if (posts is not { Count: > 0 }) {
                 if (tagsByRarity.Count < 2)
@@ -150,7 +154,6 @@ public class DanbooruApi {
             var post = posts[Rand.Next(posts.Count)];
 
             L.I($"Tags: {post.TagString}");
-
 
             if (Conf.Instance.UseForbiddenTags && Conf.Instance.ForbiddenTags.Any(tag => post.TagString.Contains(tag))) {
                 // Попался запрещенный тег
@@ -169,9 +172,8 @@ public class DanbooruApi {
                 continue;
             }
 
-            if (AllowedFormats.Any(s => post.FileUrl.EndsWith(s))) {
+            if (AllowedFormats.Any(s => post.FileUrl.EndsWith(s)))
                 return (post, null);
-            }
 
             L.I($"Got {post.FileUrl.Split('.')[^1]} format. Retrying");
         }
@@ -184,24 +186,38 @@ public class DanbooruApi {
         return (post?.FileUrl, err);
     }
 
-    public class TagCache(int count, int[] order) {
+    public static void SaveCache() {
+        var text = JsonConvert.SerializeObject(TagsCache);
+        File.WriteAllText("danbooru_tags_cache.json", text);
+        text = JsonConvert.SerializeObject(MediaCache);
+        File.WriteAllText("danbooru_cache.json", text);
+    }
+
+    public class TagCacheEntry(int count, int[] order) {
         public readonly int count = count;
         public readonly int[] order = order;
         public int i = 0;
     }
+
+    public record MediaCacheEntry(
+        long VkOwnerId,
+        long VkMediaId,
+        string VkAccessKey,
+        string VkUrl,
+        string Path) {
+    }
 }
 
-public class Post {
-    public Post(int id, string fileUrl, string previewFileUrl, string tagString) {
+public class DanbooruPost {
+    public DanbooruPost(int id, string fileUrl, string tagString, bool isDeleted) {
         Id = id;
         FileUrl = fileUrl;
-        PreviewFileUrl = previewFileUrl;
         TagString = tagString;
+        IsDeleted = isDeleted;
     }
 
     [JsonPropertyName("id")] public int Id { get; set; }
     [JsonPropertyName("file_url")] public string? FileUrl { get; set; }
-    [JsonPropertyName("preview_file_url")] public string PreviewFileUrl { get; set; }
     [JsonPropertyName("tag_string")] public string TagString { get; set; }
     [JsonPropertyName("is_deleted")] public bool IsDeleted { get; set; }
 

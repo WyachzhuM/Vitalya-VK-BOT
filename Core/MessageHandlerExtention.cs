@@ -14,7 +14,6 @@ using VkNet.Enums.StringEnums;
 using VkNet.Exception;
 using VkNet.Model;
 using Image = SixLabors.ImageSharp.Image;
-using Post = vkbot_vitalya.Services.Post;
 
 namespace vkbot_vitalya;
 
@@ -121,20 +120,40 @@ public partial class MessageHandler {
     private async Task HandleAnimeCommand(Message message, string alias, string tags) {
         L.I($"Requesting Safebooru with tags: {tags}");
 
-        var post = await ServiceEndpoint.SafebooruApi.GetRandomPostAsync(tags);
+        var (post, err) = await ServiceEndpoint.SafebooruApi.RandomPostAsync(tags);
 
         if (post == null) {
             L.I("No anime image found.");
-            Answer(message, "Извините, не удалось найти изображение аниме.");
+            Answer(message, err + ".");
             return;
         }
 
-        var imageUrl = post.FileUrl;
-        L.I($"Found image URL: {imageUrl}");
+        var mediaUrl = post.FileUrl;
+        L.I($"Found media URL: {mediaUrl}");
 
         try {
-            var photo = await _bot.UploadImageFrom(imageUrl, ServiceEndpoint.SafebooruApi.Client);
-            if (photo == null) return;
+            MediaAttachment? attch;
+            var mediaType = mediaUrl.Split('.')[^1] == "gif" ? "doc" : "photo";
+            if (SafebooruApi.MediaCache.TryGetValue(post.Id, out var cache)) {
+                /* Отправка медиа из сохр */
+                attch = mediaType == "photo" ? new Photo() : new Document();
+                attch.OwnerId = cache.VkOwnerId;
+                attch.Id = cache.VkMediaId;
+                attch.AccessKey = cache.VkAccessKey;
+            } else {
+                /* Загрузка медиа в вк */
+                attch = mediaType == "photo"
+                    ? await _bot.UploadImageFrom(mediaUrl, ServiceEndpoint.SafebooruApi.HttpClient)
+                    : await _bot.UploadGifFrom(mediaUrl, message.PeerId, ServiceEndpoint.SafebooruApi.HttpClient);
+                if (attch == null) return;
+                string vkMediaUrl;
+                vkMediaUrl = attch is Photo photo
+                    ? photo.Sizes.OrderByDescending(size => size.Height).First().Url.AbsoluteUri
+                    : (attch as Document)!.Uri;
+                /* Один пост может грузиться дважды, если посты зациклились быстрее чем загрузились */
+                SafebooruApi.MediaCache.TryAdd(post.Id,
+                    new(attch.OwnerId!.Value, attch.Id!.Value, attch.AccessKey, vkMediaUrl, ""));
+            }
 
             List<string> variableLabel = [
                 "Еще!",
@@ -178,7 +197,7 @@ public partial class MessageHandler {
             _bot.Api.Messages.Send(new MessagesSendParams {
                 RandomId = Rand.Next(),
                 PeerId = message.PeerId,
-                Attachments = [photo],
+                Attachments = [attch],
                 ReplyTo = message.Id,
                 Keyboard = keyboard
             });
@@ -193,7 +212,7 @@ public partial class MessageHandler {
         L.I($"Requesting Danbooru with tags: {tags}");
 
         string? mediaUrl, err;
-        Post? post;
+        DanbooruPost? post;
         try {
             (post, err) = await ServiceEndpoint.DanbooruApi.RandomPostAsync(tags);
         } catch (Exception e) {
@@ -213,24 +232,27 @@ public partial class MessageHandler {
         L.I($"Found image URL: {mediaUrl}");
 
         try {
-            MediaAttachment? attachment;
+            MediaAttachment? attch;
             var mediaType = mediaUrl.Split('.')[^1] == "gif" ? "doc" : "photo";
-            if (DanbooruApi.AttachmentsCache.TryGetValue(post.Id, out var value)) {
-                /* Отправка фото из сохр */
-                attachment = mediaType == "photo" ? new Photo() : new Document();
-                var ss = value.Split('_');
-                attachment.OwnerId = long.Parse(ss[0][mediaType.Length..]);
-                attachment.Id = long.Parse(ss[1]);
-                attachment.AccessKey = ss[2];
+            if (DanbooruApi.MediaCache.TryGetValue(post.Id, out var cache)) {
+                /* Отправка медиа из сохр */
+                attch = mediaType == "photo" ? new Photo() : new Document();
+                attch.OwnerId = cache.VkOwnerId;
+                attch.Id = cache.VkMediaId;
+                attch.AccessKey = cache.VkAccessKey;
             } else {
-                /* Загрузка фото в вк */
-                attachment = mediaType == "photo"
+                /* Загрузка медиа в вк */
+                attch = mediaType == "photo"
                     ? await _bot.UploadImageFrom(mediaUrl, ServiceEndpoint.DanbooruApi.HttpClient)
                     : await _bot.UploadGifFrom(mediaUrl, message.PeerId, ServiceEndpoint.DanbooruApi.HttpClient);
-                if (attachment == null) return;
-                var photoCache = $"{mediaType}{attachment.OwnerId}_{attachment.Id}_{attachment.AccessKey}";
+                if (attch == null) return;
+                string vkMediaUrl;
+                vkMediaUrl = attch is Photo photo
+                    ? photo.Sizes.OrderByDescending(size => size.Height).First().Url.AbsoluteUri
+                    : (attch as Document)!.Uri;
                 /* Один пост может грузиться дважды, если посты зациклились быстрее чем загрузились */
-                DanbooruApi.AttachmentsCache.TryAdd(post.Id, photoCache);
+                DanbooruApi.MediaCache.TryAdd(post.Id,
+                    new(attch.OwnerId!.Value, attch.Id!.Value, attch.AccessKey, vkMediaUrl, ""));
             }
             
             var b = new MessageKeyboardButton {
@@ -253,7 +275,7 @@ public partial class MessageHandler {
             _bot.Api.Messages.Send(new MessagesSendParams {
                 RandomId = Rand.Next(),
                 PeerId = message.PeerId,
-                Attachments = [attachment],
+                Attachments = [attch],
                 ReplyTo = message.Id,
                 Keyboard = keyboard
             });

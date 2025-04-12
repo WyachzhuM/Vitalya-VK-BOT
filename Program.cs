@@ -1,5 +1,4 @@
 ﻿using System.Text;
-using Newtonsoft.Json;
 using vkbot_vitalya.Config;
 using vkbot_vitalya.Core;
 using vkbot_vitalya.Core.Saver;
@@ -58,11 +57,9 @@ public static class Program {
         }
 
         _shutdownEvent.WaitOne();
-        L.I("Saving tags cache");
-        var text = JsonConvert.SerializeObject(DanbooruApi.TagsCache);
-        File.WriteAllText("tags_cache.json", text);
-        text = JsonConvert.SerializeObject(DanbooruApi.AttachmentsCache);
-        File.WriteAllText("danbooru_cache.json", text);
+        L.I("Saving cache...");
+        DanbooruApi.SaveCache();
+        SafebooruApi.SaveCache();
         L.I($"Bot stopped at {DateTime.Now}");
     }
 
